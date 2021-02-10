@@ -1,0 +1,9 @@
+/.idea
+_ReSharper.Caches/
+.vs/
+bin/
+obj/
+*.user
+/Subplatform.Snk
+/*.nupkg
+/*.nuspec
