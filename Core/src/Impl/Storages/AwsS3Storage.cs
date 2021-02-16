@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Amazon;
+using Amazon.CloudFront;
+using Amazon.CloudFront.Model;
 using Amazon.S3;
 using Amazon.S3.Model;
 using JetBrains.Annotations;
@@ -14,17 +16,22 @@ namespace JetBrains.SymbolStorage.Impl.Storages
   {
     private const string AwsS3GroupUriAllUsers = "http://acs.amazonaws.com/groups/global/AllUsers";
     private readonly string myBucketName;
-    private readonly IAmazonS3 myClient;
+    private readonly string myCloudFrontDistributionId;
+    private readonly IAmazonS3 myS3Client;
+    private readonly IAmazonCloudFront myCloudFrontClient;
 
     public AwsS3Storage(
       [NotNull] string accessKey,
       [NotNull] string secretKey,
       [NotNull] string bucketName,
+      [CanBeNull] string cloudFrontDistributionId = null,
       [CanBeNull] string region = null)
     {
       var regionEndpoint = region != null ? RegionEndpoint.GetBySystemName(region) : RegionEndpoint.EUWest1;
-      myClient = new AmazonS3Client(accessKey, secretKey, regionEndpoint);
+      myS3Client = new AmazonS3Client(accessKey, secretKey, regionEndpoint);
+      myCloudFrontClient = new AmazonCloudFrontClient(accessKey, secretKey, regionEndpoint);
       myBucketName = bucketName ?? throw new ArgumentNullException(nameof(bucketName));
+      myCloudFrontDistributionId = cloudFrontDistributionId;
     }
 
     public async Task<bool> Exists(string file)
@@ -33,7 +40,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new ArgumentNullException(nameof(file));
       try
       {
-        await myClient.GetObjectMetadataAsync(new GetObjectMetadataRequest
+        await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
           {
             BucketName = myBucketName,
             Key = file.NormalizeLinux()
@@ -52,7 +59,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       if (string.IsNullOrEmpty(file))
         throw new ArgumentNullException(nameof(file));
-      return myClient.DeleteObjectAsync(new DeleteObjectRequest
+      return myS3Client.DeleteObjectAsync(new DeleteObjectRequest
         {
           BucketName = myBucketName,
           Key = file.NormalizeLinux()
@@ -66,7 +73,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       if (string.IsNullOrEmpty(newFile))
         throw new ArgumentNullException(nameof(newFile));
       var srcFile = file.NormalizeLinux();
-      await myClient.CopyObjectAsync(new CopyObjectRequest
+      await myS3Client.CopyObjectAsync(new CopyObjectRequest
         {
           SourceBucket = myBucketName,
           SourceKey = srcFile,
@@ -74,7 +81,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           DestinationKey = newFile.NormalizeLinux(),
           CannedACL = GetS3CannedAcl(mode)
         });
-      await myClient.DeleteObjectAsync(new DeleteObjectRequest
+      await myS3Client.DeleteObjectAsync(new DeleteObjectRequest
         {
           BucketName = myBucketName,
           Key = srcFile
@@ -85,7 +92,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       if (string.IsNullOrEmpty(file))
         throw new ArgumentNullException(nameof(file));
-      var response = await myClient.GetObjectMetadataAsync(new GetObjectMetadataRequest
+      var response = await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
         {
           BucketName = myBucketName,
           Key = file.NormalizeLinux()
@@ -99,7 +106,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       if (string.IsNullOrEmpty(file))
         throw new ArgumentNullException(nameof(file));
-      var respond = await myClient.GetACLAsync(new GetACLRequest
+      var respond = await myS3Client.GetACLAsync(new GetACLRequest
         {
           BucketName = myBucketName,
           Key = file.NormalizeLinux()
@@ -129,7 +136,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       if (string.IsNullOrEmpty(file))
         throw new ArgumentNullException(nameof(file));
-      await myClient.PutACLAsync(new PutACLRequest
+      await myS3Client.PutACLAsync(new PutACLRequest
         {
           BucketName = myBucketName,
           Key = file.NormalizeLinux(),
@@ -143,7 +150,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new ArgumentNullException(nameof(file));
       if (func == null)
         throw new ArgumentNullException(nameof(func));
-      using var response = await myClient.GetObjectAsync(new GetObjectRequest
+      using var response = await myS3Client.GetObjectAsync(new GetObjectRequest
         {
           BucketName = myBucketName,
           Key = file.NormalizeLinux()
@@ -173,7 +180,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           throw new ArgumentException(nameof(length));
       }
 
-      await myClient.PutObjectAsync(new PutObjectRequest
+      await myS3Client.PutObjectAsync(new PutObjectRequest
         {
           BucketName = myBucketName,
           Key = file.NormalizeLinux(),
@@ -190,7 +197,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task<bool> IsEmpty()
     {
-      var response = await myClient.ListObjectsAsync(new ListObjectsRequest
+      var response = await myS3Client.ListObjectsAsync(new ListObjectsRequest
         {
           BucketName = myBucketName,
           MaxKeys = 2
@@ -206,7 +213,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           Prefix = string.IsNullOrEmpty(prefixDir) ? null : prefixDir.NormalizeLinux() + '/'
         };;)
       {
-        var response = await myClient.ListObjectsAsync(request);
+        var response = await myS3Client.ListObjectsAsync(request);
         foreach (var s3Object in response.S3Objects.Where(IsUserFile))
         {
           yield return new ChildrenItem
@@ -219,6 +226,25 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         request.Marker = response.NextMarker;
         if (!response.IsTruncated)
           break;
+      }
+    }
+    
+    public async Task InvalidateExternalServices(IEnumerable<string> keys)
+    {
+      if (keys == null)
+        throw new ArgumentNullException(nameof(keys));
+      if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
+      {
+        var items = keys.Select(x => x.NormalizeLinux().StartsWith("/") ? x : '/' + x).ToList();
+        await myCloudFrontClient.CreateInvalidationAsync(new CreateInvalidationRequest
+          {
+            DistributionId = myCloudFrontDistributionId,
+            InvalidationBatch = new InvalidationBatch(new Paths
+              {
+                Items = items,
+                Quantity = items.Count
+              }, $"symbol-storage-{DateTime.UtcNow:s}")
+          });
       }
     }
 

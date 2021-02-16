@@ -40,18 +40,22 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myLogger.Info($"[{DateTime.Now:s}] Creating storage markers{myId}...");
       if (!await myStorage.IsEmpty())
         throw new Exception("The empty storage is expected");
-      await myStorage.CreateEmpty(Markers.SingleTier, AccessMode.Private);
+      var files = new List<string> {Markers.SingleTier};
       switch (newStorageFormat)
       {
       case StorageFormat.Normal: break;
       case StorageFormat.LowerCase:
-        await myStorage.CreateEmpty(Markers.LowerCase, AccessMode.Private);
+        files.Add(Markers.LowerCase);
         break;
       case StorageFormat.UpperCase:
-        await myStorage.CreateEmpty(Markers.UpperCase, AccessMode.Private);
+        files.Add(Markers.UpperCase);
         break;
       default: throw new ArgumentOutOfRangeException(nameof(newStorageFormat), newStorageFormat, null);
       }
+
+      foreach (var file in files)
+        await myStorage.CreateEmpty(file, AccessMode.Private);
+      await myStorage.InvalidateExternalServices(files);
     }
 
     public async Task<StorageFormat> ValidateStorageMarkers()
@@ -87,7 +91,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return await myStorage.GetAllTagScripts(x => myLogger.Info($"  Loading {x}")).ToListAsync();
     }
 
-    public async Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> LoadTagItems(
+    public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItems(
       IReadOnlyCollection<string> incProductWildcards,
       IReadOnlyCollection<string> excProductWildcards,
       IReadOnlyCollection<string> incVersionWildcards,
@@ -98,13 +102,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var excProductRegexs = excProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
       var incVersionRegexs = incVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
       var excVersionRegexs = excVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
-      return tagItems
-        .Where(x =>
-          (incProductRegexs.Length == 0 || incProductRegexs.Any(y => y.IsMatch(x.Value.Product ?? ""))) &&
-          (incVersionRegexs.Length == 0 || incVersionRegexs.Any(y => y.IsMatch(x.Value.Version ?? ""))) &&
-          excProductRegexs.All(y => !y.IsMatch(x.Value.Product ?? "")) &&
-          excVersionRegexs.All(y => !y.IsMatch(x.Value.Version ?? "")))
-        .ToList();
+      var inc = new List<KeyValuePair<string, Tag>>();
+      var exc = new List<KeyValuePair<string, Tag>>();
+      foreach (var tagItem in tagItems)
+        if ((incProductRegexs.Length == 0 || incProductRegexs.Any(y => y.IsMatch(tagItem.Value.Product ?? ""))) &&
+            (incVersionRegexs.Length == 0 || incVersionRegexs.Any(y => y.IsMatch(tagItem.Value.Version ?? ""))) &&
+            excProductRegexs.All(y => !y.IsMatch(tagItem.Value.Product ?? "")) &&
+            excVersionRegexs.All(y => !y.IsMatch(tagItem.Value.Version ?? "")))
+          inc.Add(tagItem);
+        else
+          exc.Add(tagItem);
+      return Tuple.Create((IReadOnlyCollection<KeyValuePair<string, Tag>>) inc, (IReadOnlyCollection<KeyValuePair<string, Tag>>) exc);
     }
 
     [NotNull]
@@ -157,23 +165,23 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var tree = await CreateDirectoryTree(files);
       foreach (var item in items)
       {
-        var file = item.Key;
+        var tagFile = item.Key;
         var tag = item.Value;
-        logger.Info($"  Validating {file}");
+        logger.Info($"  Validating {tagFile}");
 
         if (!tag.Product.ValidateProduct())
-          logger.Error($"Invalid product {tag.Product} in file {file}");
+          logger.Error($"Invalid product {tag.Product} in file {tagFile}");
 
         if (!tag.Version.ValidateVersion())
-          logger.Error($"Invalid version {tag.Version} in file {file}");
+          logger.Error($"Invalid version {tag.Version} in file {tagFile}");
 
         if (tag.Directories == null || tag.Directories.Length == 0)
         {
-          logger.Error($"The empty directory list in {file}");
+          logger.Error($"The empty directory list in {tagFile}");
           if (fix)
           {
-            logger.Fix($"The tag will be deleted {file}");
-            await myStorage.Delete(file);
+            logger.Fix($"The tag will be deleted {tagFile}");
+            await myStorage.Delete(tagFile);
           }
         }
         else
@@ -188,10 +196,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             case PathUtil.ValidateAndFixErrors.Ok:
               break;
             case PathUtil.ValidateAndFixErrors.Error:
-              logger.Error($"The tag directory {dir} from {file} has invalid format");
+              logger.Error($"The tag directory {dir} from {tagFile} has invalid format");
               break;
             case PathUtil.ValidateAndFixErrors.CanBeFixed:
-              logger.Error($"The tag directory {dir} from {file} has invalid format");
+              logger.Error($"The tag directory {dir} from {tagFile} has invalid format");
               if (fix)
               {
                 isDirty = true;
@@ -209,17 +217,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
               node = node?.Lookup(part);
 
             if (node == null)
-              logger.Error($"The directory {dir} from {file} id wasn't found");
+              logger.Error($"The directory {dir} from {tagFile} id wasn't found");
             else
               node.IncrementReferences();
           }
 
           if (isDirty)
           {
-            logger.Fix($"The tag file {file} will be overwritten");
+            logger.Fix($"The tag file {tagFile} will be overwritten");
             await using var stream = new MemoryStream();
             TagUtil.WriteTagScript(tag, stream);
-            await myStorage.CreateForWriting(file, AccessMode.Private, stream.Length, stream.Rewind());
+            await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream.Length, stream.Rewind());
+            await myStorage.InvalidateExternalServices(new[] {tagFile});
           }
         }
       }

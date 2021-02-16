@@ -24,5 +24,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     Task<bool> IsEmpty();
     
     IAsyncEnumerable<ChildrenItem> GetChildren(ChildrenMode mode, string prefixDir = null);
+
+    Task InvalidateExternalServices([NotNull] IEnumerable<string> keys);
   }
 }

@@ -38,27 +38,29 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var storageFormat = await validator.ValidateStorageMarkers();
 
       long deleteTags;
+      IReadOnlyCollection<KeyValuePair<string, Tags.Tag>> tagItems;
       {
-        var tagItems = await validator.LoadTagItems(
+        var (incTagItems, excTagItems) = await validator.LoadTagItems(
           myIncProductWildcards,
           myExcProductWildcards,
           myIncVersionWildcards,
           myExcVersionWildcards);
-        validator.DumpProducts(tagItems);
-        validator.DumpProperties(tagItems);
-        deleteTags = tagItems.Count;
+        validator.DumpProducts(incTagItems);
+        validator.DumpProperties(incTagItems);
+        deleteTags = incTagItems.Count;
 
         myLogger.Info($"[{DateTime.Now:s}] Deleting tag files...");
-        foreach (var tagItem in tagItems)
+        foreach (var tagItem in incTagItems)
         {
           var file = tagItem.Key;
           myLogger.Info($"  Deleting {file}");
           await myStorage.Delete(file);
         }
+
+        tagItems = excTagItems;
       }
 
       {
-        var tagItems = await validator.LoadTagItems();
         var (_, files) = await validator.GatherDataFiles();
         var (statistics, deleted) = await validator.Validate(tagItems, files, storageFormat, Validator.ValidateMode.Delete);
         myLogger.Info($"[{DateTime.Now:s}] Done (deleted tag files: {deleteTags}, deleted data files: {deleted}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");

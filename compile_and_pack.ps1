@@ -5,8 +5,11 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference=[System.Management.Automation.ActionPreference]::Stop
 
-$_Framework="net5.0"
-$_PackageVersion="1.0.0"
+
+[xml]$_Project=Get-Content Common.targets
+$_Framework=$_Project.Project.PropertyGroup.TargetFramework
+$_PackageVersion=$_Project.Project.PropertyGroup.Version
+
 Write-Host "Framework:" $_Framework
 Write-Host "PackageVersion:" $_PackageVersion
 

@@ -62,20 +62,19 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
       await new Validator(myLogger, myStorage).CreateStorageMarkers(myExpectedStorageFormat);
 
-      var dirs = new ConcurrentBag<string>();
-      var scanner = new Scanner(myLogger, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
-        async (sourceDir, sourceRelativeFile, storageRelativeFile) =>
+      var dstFiles = new ConcurrentBag<string>();
+      var statistics = await new Scanner(myLogger, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
+        async (srcDir, srcFile, dstFile) =>
           {
-            await WriteData(Path.Combine(sourceDir, sourceRelativeFile), storageRelativeFile, (file, len, stream) => myStorage.CreateForWriting(file, AccessMode.Public, len, stream));
-            dirs.Add(Path.GetDirectoryName(storageRelativeFile));
+            await WriteData(Path.Combine(srcDir, srcFile), (len, stream) => myStorage.CreateForWriting(dstFile, AccessMode.Public, len, stream));
+            dstFiles.Add(dstFile);
           },
-        async (sourceDir, sourceRelativeFile, packedStorageRelativeFile) =>
+        async (srcDir, srcFile, dstFile) =>
           {
-            await WriteDataPacked(Path.Combine(sourceDir, sourceRelativeFile), packedStorageRelativeFile, (file, len, stream) => myStorage.CreateForWriting(file, AccessMode.Public, len, stream));
-            dirs.Add(Path.GetDirectoryName(packedStorageRelativeFile));
-          });
-
-      var statistics = await scanner.Execute();
+            await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, (len, stream) => myStorage.CreateForWriting(dstFile, AccessMode.Public, len, stream));
+            dstFiles.Add(dstFile);
+          }).Execute();
+      await myStorage.InvalidateExternalServices(dstFiles);
       myLogger.Info($"[{DateTime.Now:s}] Done with data (warnings: {statistics.Warnings}, errors: {statistics.Errors})");
       if (statistics.HasProblems)
       {
@@ -83,7 +82,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         return 1;
       }
 
-      await WriteTag(dirs);
+      await WriteTag(dstFiles.Select(Path.GetDirectoryName).Distinct());
       return 0;
     }
 
@@ -99,26 +98,26 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           Product = myProduct,
           Version = myVersion,
           Properties = myProperties.ToTagProperties(),
-          Directories = dirs.Distinct().OrderBy(x => x, StringComparer.Ordinal).ToArray()
+          Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).ToArray()
         }, stream);
 
       var tagFile = Path.Combine(TagUtil.TagDirectory, myProduct, myProduct + '-' + myVersion + '-' + fileId.ToString("N") + TagUtil.TagExtension);
       await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream.Length, stream.Rewind());
+      await myStorage.InvalidateExternalServices(new[] {tagFile});
     }
 
     private static async Task WriteData(
       [NotNull] string sourceFile,
-      [NotNull] string storageRelativeFile,
-      [NotNull] Func<string, long, Stream, Task> writeStorageFile)
+      [NotNull] Func<long, Stream, Task> writeStorageFile)
     {
       await using var stream = File.OpenRead(sourceFile);
-      await writeStorageFile(storageRelativeFile, stream.Length, stream);
+      await writeStorageFile(stream.Length, stream);
     }
 
     private static async Task WriteDataPacked(
       [NotNull] string sourceFile,
       [NotNull] string packedStorageRelativeFile,
-      [NotNull] Func<string, long, Stream, Task> writeStorageFile)
+      [NotNull] Func<long, Stream, Task> writeStorageFile)
     {
       if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         throw new PlatformNotSupportedException("The Windows PDB and PE compression works only on Windows");
@@ -133,7 +132,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
         await using var stream = File.Open(tempFile, FileMode.Open, FileAccess.ReadWrite);
         PatchCompressed(File.GetLastWriteTime(sourceFile), stream);
-        await writeStorageFile(packedStorageRelativeFile, stream.Length, stream.Rewind());
+        await writeStorageFile(stream.Length, stream.Rewind());
       }
       finally
       {

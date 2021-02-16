@@ -133,13 +133,13 @@ namespace JetBrains.SymbolStorage.Impl
     [NotNull]
     public static string NormalizeLinux([NotNull] this string path)
     {
-      return path.Replace('\\', '/');
+      return path.Replace('\\', '/').TrimStart('/');
     }
 
     [NotNull]
     public static string NormalizeSystem([NotNull] this string path)
     {
-      return path.Replace('/', Path.DirectorySeparatorChar);
+      return path.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
     }
   }
 }

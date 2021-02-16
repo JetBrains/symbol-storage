@@ -177,6 +177,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
+    public Task InvalidateExternalServices(IEnumerable<string> keys)
+    {
+      if (keys == null)
+        throw new ArgumentNullException(nameof(keys));
+      return Task.CompletedTask;
+    }
+
     private void TryRemoveEmptyDirsToRootDir([NotNull] string dir)
     {
       if (dir == null)

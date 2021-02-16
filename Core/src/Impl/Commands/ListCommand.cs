@@ -35,7 +35,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public async Task<int> Execute()
     {
       var validator = new Validator(myLogger, myStorage);
-      var tagItems = await validator.LoadTagItems(
+      var (tagItems, _) = await validator.LoadTagItems(
         myIncProductWildcards,
         myExcProductWildcards,
         myIncVersionWildcards,

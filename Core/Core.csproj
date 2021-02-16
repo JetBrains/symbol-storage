@@ -1,12 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../Common.targets" />
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
     <AssemblyName>JetBrains.SymbolStorage</AssemblyName>
     <RootNamespace>JetBrains.SymbolStorage</RootNamespace>
-    <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\Subplatform.Snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="AWSSDK.CloudFront" Version="3.5.6.14" />
     <PackageReference Include="AWSSDK.S3" Version="3.5.8.3" />
     <PackageReference Include="JetBrains.Annotations" Version="2020.3.0" />
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />
