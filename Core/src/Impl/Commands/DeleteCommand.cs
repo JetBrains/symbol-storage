@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
@@ -63,6 +64,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       {
         var (_, files) = await validator.GatherDataFiles();
         var (statistics, deleted) = await validator.Validate(tagItems, files, storageFormat, Validator.ValidateMode.Delete);
+        if (deleted > 0)
+          await myStorage.InvalidateExternalServices();
         myLogger.Info($"[{DateTime.Now:s}] Done (deleted tag files: {deleteTags}, deleted data files: {deleted}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");
         return statistics.HasProblems ? 1 : 0;
       }

@@ -231,20 +231,21 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     
     public async Task InvalidateExternalServices(IEnumerable<string> keys)
     {
-      if (keys == null)
-        throw new ArgumentNullException(nameof(keys));
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {
-        var items = keys.Select(x => x.NormalizeLinux().StartsWith("/") ? x : '/' + x).ToList();
-        await myCloudFrontClient.CreateInvalidationAsync(new CreateInvalidationRequest
-          {
-            DistributionId = myCloudFrontDistributionId,
-            InvalidationBatch = new InvalidationBatch(new Paths
-              {
-                Items = items,
-                Quantity = items.Count
-              }, $"symbol-storage-{DateTime.UtcNow:s}")
-          });
+        var items = keys != null 
+          ? keys.Select(x => '/' + x.NormalizeLinux()).ToList()
+          : new List<string> {"/*"};
+        if (items.Count > 0)
+          await myCloudFrontClient.CreateInvalidationAsync(new CreateInvalidationRequest
+            {
+              DistributionId = myCloudFrontDistributionId,
+              InvalidationBatch = new InvalidationBatch(new Paths
+                {
+                  Items = items,
+                  Quantity = items.Count
+                }, $"symbol-storage-{DateTime.UtcNow:s}")
+            });
       }
     }
 

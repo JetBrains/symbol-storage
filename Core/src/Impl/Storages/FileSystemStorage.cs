@@ -179,8 +179,6 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public Task InvalidateExternalServices(IEnumerable<string> keys)
     {
-      if (keys == null)
-        throw new ArgumentNullException(nameof(keys));
       return Task.CompletedTask;
     }
 

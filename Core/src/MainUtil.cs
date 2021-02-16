@@ -123,6 +123,9 @@ namespace JetBrains.SymbolStorage
             var sourcesOption = x.Argument("path [path [...]]", "Source directories or files with symbols, executables and shared libraries.", true);
             x.OnExecute(async () =>
               {
+                var storage = AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value());
+                var newStorageFormat = AccessUtil.GetStorageFormat(newStorageFormatOption.Value());
+                
                 var tempDir = Path.Combine(Path.GetTempPath(), "storage_" + Guid.NewGuid().ToString("D"));
                 try
                 {
@@ -143,9 +146,9 @@ namespace JetBrains.SymbolStorage
 
                   return await new UploadCommand(
                     ConsoleLogger.Instance,
-                    AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value()),
+                    storage,
                     tempDir,
-                    AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).Execute();
+                    newStorageFormat).Execute();
                 }
                 finally
                 {

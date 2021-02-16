@@ -55,7 +55,6 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
       foreach (var file in files)
         await myStorage.CreateEmpty(file, AccessMode.Private);
-      await myStorage.InvalidateExternalServices(files);
     }
 
     public async Task<StorageFormat> ValidateStorageMarkers()
@@ -228,7 +227,6 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             await using var stream = new MemoryStream();
             TagUtil.WriteTagScript(tag, stream);
             await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream.Length, stream.Rewind());
-            await myStorage.InvalidateExternalServices(new[] {tagFile});
           }
         }
       }

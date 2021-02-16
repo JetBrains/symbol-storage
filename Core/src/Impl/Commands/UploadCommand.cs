@@ -114,7 +114,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             Interlocked.Add(ref totalSize, memoryStream.Length);
           }
 
-          await myStorage.InvalidateExternalServices(uploadFiles.Select(x => x.Item2).ToList());
+          await myStorage.InvalidateExternalServices();
           myLogger.Info($"[{DateTime.Now:s}] Done with uploading (size: {totalSize.ToKibibyte()}, files: {uploadFiles.Count})");
         }
       }

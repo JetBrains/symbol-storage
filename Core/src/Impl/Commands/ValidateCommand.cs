@@ -34,6 +34,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       validator.DumpProperties(tagItems);
       var (totalSize, files) = await validator.GatherDataFiles();
       var (statistics, _) = await validator.Validate(tagItems, files, storageFormat, myFix ? Validator.ValidateMode.Fix : Validator.ValidateMode.Validate, myVerifyAcl);
+      if (statistics.Fixes > 0)
+        await myStorage.InvalidateExternalServices();
       myLogger.Info($"[{DateTime.Now:s}] Done (size: {totalSize.ToKibibyte()}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");
       return statistics.HasProblems ? 1 : 0;
     }
