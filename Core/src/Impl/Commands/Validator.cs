@@ -167,12 +167,28 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         var tagFile = item.Key;
         var tag = item.Value;
         logger.Info($"  Validating {tagFile}");
+        var isDirty = false;
 
         if (!tag.Product.ValidateProduct())
           logger.Error($"Invalid product {tag.Product} in file {tagFile}");
 
         if (!tag.Version.ValidateVersion())
           logger.Error($"Invalid version {tag.Version} in file {tagFile}");
+
+        if (tag.CreationUtcTime == DateTime.MinValue)
+        {
+          logger.Error($"The empty creation time in {tagFile}");
+          if (fix)
+          {
+            var newCreationUtcTime = TryFixCreationTime(tag);
+            if (newCreationUtcTime != null)
+            {
+              logger.Fix($"The creation time will be assigned to tag {tagFile}");
+              isDirty = true;
+              tag.CreationUtcTime = newCreationUtcTime.Value;
+            }
+          }
+        }
 
         if (tag.Directories == null || tag.Directories.Length == 0)
         {
@@ -181,11 +197,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           {
             logger.Fix($"The tag will be deleted {tagFile}");
             await myStorage.Delete(tagFile);
+            continue;
           }
         }
         else
         {
-          var isDirty = false;
           for (var index = 0; index < tag.Directories.Length; index++)
           {
             var dir = tag.Directories[index];
@@ -220,14 +236,14 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             else
               node.IncrementReferences();
           }
+        }
 
-          if (isDirty)
-          {
-            logger.Fix($"The tag file {tagFile} will be overwritten");
-            await using var stream = new MemoryStream();
-            TagUtil.WriteTagScript(tag, stream);
-            await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream.Length, stream.Rewind());
-          }
+        if (isDirty)
+        {
+          logger.Info($"The tag file {tagFile} will be overwritten");
+          await using var stream = new MemoryStream();
+          TagUtil.WriteTagScript(tag, stream);
+          await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream.Length, stream.Rewind());
         }
       }
 
@@ -235,6 +251,33 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       if (verifyAcl)
         await ValidateAcl(logger, files, fix);
       return Tuple.Create(statistics, deleted);
+    }
+
+    private static DateTime? TryFixCreationTime([NotNull] Tag tag)
+    {
+      if (tag.Product == "dotNetDiv")
+        if (tag.Version == "beforeWaves")
+          return new DateTime(2005, 5, 30);
+        else
+        {
+          var parts = tag.Properties?.FirstOrDefault(x => x.Key == "semanticVersion")?.Value?.Split('.', '-');
+          if (parts?.Length >= 4)
+            return DateTime.ParseExact(parts[2] + parts[3].PadLeft(6, '0'), "yyyyMMddHHmmss", null);
+        }
+      else if (tag.Product == "libleveldb" || tag.Product == "leveldb")
+      {
+        var parts = tag.Version?.Split('.');
+        if (parts != null && parts.Length >= 2)
+          return DateTime.ParseExact(parts[0], "yyyyMMdd", null);
+      }
+      else if (tag.Product == "coreclr")
+      {
+        var parts = tag.Version?.Split('.');
+        if (parts != null && parts.Length >= 3)
+          return DateTime.ParseExact(parts[2], "yyyyMMdd", null);
+      }
+
+      return null;
     }
 
     private async Task ValidateAcl([NotNull] ILogger logger, [NotNull] IEnumerable<string> files, bool fix)

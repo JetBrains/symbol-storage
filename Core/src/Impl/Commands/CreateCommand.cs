@@ -97,6 +97,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           FileId = fileId.ToString(),
           Product = myProduct,
           Version = myVersion,
+          CreationUtcTime = DateTime.UtcNow,
           Properties = myProperties.ToTagProperties(),
           Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).ToArray()
         }, stream);
