@@ -131,15 +131,28 @@ namespace JetBrains.SymbolStorage.Impl
       ch >= 'A' && ch <= 'F';
 
     [NotNull]
+    public static string CheckSystemFile([NotNull] this string file)
+    {
+      if (string.IsNullOrEmpty(file))
+        throw new ArgumentNullException(nameof(file));
+      if (Path.DirectorySeparatorChar == file[0] ||
+          Path.DirectorySeparatorChar == file[^1])
+        throw new ArgumentException(null, nameof(file));
+      if (file.IndexOf('/') >= 0)
+        throw new ArgumentException(null, nameof(file));
+      return file;
+    }
+    
+    [NotNull]
     public static string NormalizeLinux([NotNull] this string path)
     {
-      return path.Replace('\\', '/').TrimStart('/');
+      return path.Replace('\\', '/');
     }
 
     [NotNull]
     public static string NormalizeSystem([NotNull] this string path)
     {
-      return path.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+      return path.Replace('/', Path.DirectorySeparatorChar);
     }
   }
 }

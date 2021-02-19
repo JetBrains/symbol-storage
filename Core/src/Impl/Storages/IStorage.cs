@@ -10,7 +10,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
   {
     Task<bool> Exists([NotNull] string file);
     Task Delete([NotNull] string file);
-    Task Rename([NotNull] string file, [NotNull] string newFile, AccessMode mode);
+    Task Rename([NotNull] string srcFile, [NotNull] string dstFile, AccessMode mode);
     Task<long> GetLength([NotNull] string file);
 
     bool SupportAccessMode { get; }
@@ -25,6 +25,6 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     
     IAsyncEnumerable<ChildrenItem> GetChildren(ChildrenMode mode, string prefixDir = null);
 
-    Task InvalidateExternalServices([CanBeNull] IEnumerable<string> keys = null);
+    Task InvalidateExternalServices([CanBeNull] IEnumerable<string> fileMasks = null);
   }
 }

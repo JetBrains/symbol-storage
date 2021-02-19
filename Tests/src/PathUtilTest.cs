@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Linq;
 using JetBrains.SymbolStorage.Impl;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -17,6 +19,27 @@ namespace JetBrains.SymbolStorage.Tests
       Assert.IsTrue(expectedParts.SequenceEqual(path.NormalizeSystem().GetPathComponents()));
     }
 
+    [DataTestMethod]
+    [DataRow(null)]
+    [DataRow("")]
+    [DataRow("/")]
+    [DataRow("a/b")]
+    [DataRow("\\")]
+    [DataRow("\\a")]
+    [DataRow("a\\")]
+    public void CheckSystemFileTest(string path)
+    {
+      var path2 = path?.Replace('\\', Path.DirectorySeparatorChar);
+      try
+      {
+        Assert.IsNotNull(path2.CheckSystemFile());
+        Assert.Fail();
+      }
+      catch (ArgumentException)
+      {
+      }
+    }
+    
     [DataTestMethod]
     [DataRow(StorageFormat.Normal, "a")]
     [DataRow(StorageFormat.Normal, "a/b/c/d")]

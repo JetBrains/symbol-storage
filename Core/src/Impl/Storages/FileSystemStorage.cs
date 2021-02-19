@@ -19,15 +19,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public Task<bool> Exists(string file)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      file.CheckSystemFile();
       return Task.Run(() => File.Exists(Path.Combine(myRootDir, file)));
     }
 
     public Task Delete(string file)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      file.CheckSystemFile();
       return Task.Run(() =>
         {
           File.Delete(Path.Combine(myRootDir, file));
@@ -35,17 +33,15 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public Task Rename(string file, string newFile, AccessMode mode)
+    public Task Rename(string srcFile, string dstFile, AccessMode mode)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
-      if (string.IsNullOrEmpty(newFile))
-        throw new ArgumentNullException(nameof(newFile));
+      srcFile.CheckSystemFile();
+      dstFile.CheckSystemFile();
       return Task.Run(() =>
         {
           var tempExt = '.' + Guid.NewGuid().ToString("N") + ".tmp";
           
-          var dstDir = Path.GetDirectoryName(newFile);
+          var dstDir = Path.GetDirectoryName(dstFile);
           var fullDir = myRootDir;
           foreach (var part in string.IsNullOrEmpty(dstDir) ? Array.Empty<string>() : dstDir.Split(Path.DirectorySeparatorChar))
           {
@@ -65,27 +61,26 @@ namespace JetBrains.SymbolStorage.Impl.Storages
             fullDir = newFullDir;
           }
 
-          var fullNewFile = Path.Combine(fullDir, Path.GetFileName(newFile));
+          var fullNewFile = Path.Combine(fullDir, Path.GetFileName(dstFile));
 
           // Note: Should works on casing-insensitive file system!!!
-          var realFullFile = Directory.GetFiles(fullDir, Path.GetFileName(newFile)).FirstOrDefault();
+          var realFullFile = Directory.GetFiles(fullDir, Path.GetFileName(dstFile)).FirstOrDefault();
           if (realFullFile == null)
-            File.Move(Path.Combine(myRootDir, file), fullNewFile);
+            File.Move(Path.Combine(myRootDir, srcFile), fullNewFile);
           else if (realFullFile != fullNewFile)
           {
             var tempFile = fullNewFile + tempExt;
-            File.Move(Path.Combine(myRootDir, file), tempFile);
-            File.Move(tempFile, Path.Combine(myRootDir, newFile));
+            File.Move(Path.Combine(myRootDir, srcFile), tempFile);
+            File.Move(tempFile, Path.Combine(myRootDir, dstFile));
           }
 
-          TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(file) ?? "");
+          TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(srcFile) ?? "");
         });
     }
 
     public Task<long> GetLength(string file)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      file.CheckSystemFile();
       return Task.Run(() => new FileInfo(Path.Combine(myRootDir, file)).Length);
     }
 
@@ -93,20 +88,19 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public Task<AccessMode> GetAccessMode(string file)
     {
-      if (file == null) throw new ArgumentNullException(nameof(file));
+      file.CheckSystemFile();
       return Task.FromResult(AccessMode.Unknown);
     }
 
     public Task SetAccessMode(string file, AccessMode mode)
     {
-      if (file == null) throw new ArgumentNullException(nameof(file));
+      file.CheckSystemFile();
       return Task.CompletedTask;
     }
 
     public Task<TResult> OpenForReading<TResult>(string file, Func<Stream, TResult> func)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      file.CheckSystemFile();
       if (func == null)
         throw new ArgumentNullException(nameof(func));
       return Task.Run(() =>
@@ -127,8 +121,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public Task CreateForWriting(string file, AccessMode mode, long length, Stream stream)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      file.CheckSystemFile();
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
       if (stream.CanSeek)
@@ -177,15 +170,16 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task InvalidateExternalServices(IEnumerable<string> keys)
+    public Task InvalidateExternalServices(IEnumerable<string> fileMasks)
     {
+      if (fileMasks != null)
+        foreach (var key in fileMasks)
+          key.CheckSystemFile();
       return Task.CompletedTask;
     }
 
     private void TryRemoveEmptyDirsToRootDir([NotNull] string dir)
     {
-      if (dir == null)
-        throw new ArgumentNullException(nameof(dir));
       while (!string.IsNullOrEmpty(dir))
       {
         var fullDir = Path.Combine(myRootDir, dir);

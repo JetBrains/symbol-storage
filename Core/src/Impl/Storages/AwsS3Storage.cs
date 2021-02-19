@@ -36,14 +36,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task<bool> Exists(string file)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      var key = file.CheckSystemFile().NormalizeLinux();
       try
       {
         await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
           {
             BucketName = myBucketName,
-            Key = file.NormalizeLinux()
+            Key = key
           });
         return true;
       }
@@ -57,45 +56,42 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public Task Delete(string file)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      var key = file.CheckSystemFile().NormalizeLinux();
       return myS3Client.DeleteObjectAsync(new DeleteObjectRequest
         {
           BucketName = myBucketName,
-          Key = file.NormalizeLinux()
+          Key = key
         });
     }
 
-    public async Task Rename(string file, string newFile, AccessMode mode)
+    public async Task Rename(string srcFile, string dstFile, AccessMode mode)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
-      if (string.IsNullOrEmpty(newFile))
-        throw new ArgumentNullException(nameof(newFile));
-      var srcFile = file.NormalizeLinux();
+      var srcKey = srcFile.CheckSystemFile().NormalizeLinux();
+      var dstKey = dstFile.CheckSystemFile().NormalizeLinux();
+      srcFile.CheckSystemFile();
+      dstFile.CheckSystemFile();
       await myS3Client.CopyObjectAsync(new CopyObjectRequest
         {
           SourceBucket = myBucketName,
-          SourceKey = srcFile,
+          SourceKey = srcKey,
           DestinationBucket = myBucketName,
-          DestinationKey = newFile.NormalizeLinux(),
+          DestinationKey = dstKey,
           CannedACL = GetS3CannedAcl(mode)
         });
       await myS3Client.DeleteObjectAsync(new DeleteObjectRequest
         {
           BucketName = myBucketName,
-          Key = srcFile
+          Key = srcKey
         });
     }
 
     public async Task<long> GetLength(string file)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      var key = file.CheckSystemFile().NormalizeLinux();
       var response = await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
         {
           BucketName = myBucketName,
-          Key = file.NormalizeLinux()
+          Key = key
         });
       return response.ContentLength;
     }
@@ -104,12 +100,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task<AccessMode> GetAccessMode(string file)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      var key = file.CheckSystemFile().NormalizeLinux();
       var respond = await myS3Client.GetACLAsync(new GetACLRequest
         {
           BucketName = myBucketName,
-          Key = file.NormalizeLinux()
+          Key = key
         });
 
       var hasUnknown = false;
@@ -134,44 +129,37 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task SetAccessMode(string file, AccessMode mode)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
+      var key = file.CheckSystemFile().NormalizeLinux();
       await myS3Client.PutACLAsync(new PutACLRequest
         {
           BucketName = myBucketName,
-          Key = file.NormalizeLinux(),
+          Key = key,
           CannedACL = GetS3CannedAcl(mode)
         });
     }
 
     public async Task<TResult> OpenForReading<TResult>(string file, Func<Stream, TResult> func)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
       if (func == null)
         throw new ArgumentNullException(nameof(func));
+      var key = file.CheckSystemFile().NormalizeLinux();
       using var response = await myS3Client.GetObjectAsync(new GetObjectRequest
         {
           BucketName = myBucketName,
-          Key = file.NormalizeLinux()
+          Key = key
         });
       return func(response.ResponseStream);
     }
 
-    public Task OpenForReading(string file, Action<Stream> action)
-    {
-      return OpenForReading<object>(file,
+    public Task OpenForReading(string file, Action<Stream> action) => OpenForReading<object>(file,
         x =>
           {
             action(x);
             return null;
           });
-    }
 
     public async Task CreateForWriting(string file, AccessMode mode, long length, Stream stream)
     {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
       if (stream.CanSeek)
@@ -180,10 +168,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           throw new ArgumentException(nameof(length));
       }
 
+      var key = file.CheckSystemFile().NormalizeLinux();
       await myS3Client.PutObjectAsync(new PutObjectRequest
         {
           BucketName = myBucketName,
-          Key = file.NormalizeLinux(),
+          Key = key,
           InputStream = stream,
           AutoCloseStream = false,
           AutoResetStreamPosition = false,
@@ -228,13 +217,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           break;
       }
     }
-    
-    public async Task InvalidateExternalServices(IEnumerable<string> keys)
+
+    public async Task InvalidateExternalServices(IEnumerable<string> fileMasks)
     {
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {
-        var items = keys != null 
-          ? keys.Select(x => '/' + x.NormalizeLinux()).ToList()
+        var items = fileMasks != null
+          ? fileMasks.Select(x => '/' + x.CheckSystemFile().NormalizeLinux()).ToList()
           : new List<string> {"/*"};
         if (items.Count > 0)
           await myCloudFrontClient.CreateInvalidationAsync(new CreateInvalidationRequest
@@ -250,15 +239,12 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     }
 
     [NotNull]
-    private static S3CannedACL GetS3CannedAcl(AccessMode mode)
-    {
-      return mode switch
-        {
-          AccessMode.Private => S3CannedACL.Private,
-          AccessMode.Public => S3CannedACL.PublicRead,
-          _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
-        };
-    }
+    private static S3CannedACL GetS3CannedAcl(AccessMode mode) => mode switch
+      {
+        AccessMode.Private => S3CannedACL.Private,
+        AccessMode.Public => S3CannedACL.PublicRead,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+      };
 
     private static bool IsNotDataJsonFile([NotNull] S3Object s3Object) => s3Object.Key != ".data.json";
     private static bool IsDirectory([NotNull] S3Object s3Object) => s3Object.Key.EndsWith("/") && s3Object.Size == 0;
