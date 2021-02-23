@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using JetBrains.Annotations;
 
@@ -138,7 +139,7 @@ namespace JetBrains.SymbolStorage.Impl
       if (Path.DirectorySeparatorChar == file[0] ||
           Path.DirectorySeparatorChar == file[^1])
         throw new ArgumentException(null, nameof(file));
-      if (file.IndexOf('/') >= 0)
+      if (file.Contains(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '/' : '\\'))
         throw new ArgumentException(null, nameof(file));
       return file;
     }
