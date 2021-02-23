@@ -18,7 +18,18 @@ namespace JetBrains.SymbolStorage
       UploadOnly
     }
 
-    public static int Main(Assembly mainAssembly, [NotNull] string[] args, MainMode mode)
+    // Bug: Unix has one byte for exit code instead of Windows!!!
+    //
+    // Standard posix exit code meaning:
+    //     1   - Catchall for general errors
+    //     2   - Misuse of shell builtins (according to Bash documentation)
+    //   126   - Command invoked cannot execute
+    //   127   - “command not found”
+    //   128   - Invalid argument to exit
+    //   128+n - Fatal error signal “n”
+    //   130   - Script terminated by Control-C
+    //   255\* - Exit status out of range
+    public static byte Main(Assembly mainAssembly, [NotNull] string[] args, MainMode mode)
     {
       try
       {
@@ -158,14 +169,20 @@ namespace JetBrains.SymbolStorage
           });
 
         if (args.Length != 0)
-          return commandLine.Execute(args);
+        {
+          var res = commandLine.Execute(args);
+          if (0 <= res && res < 126)
+            return (byte) res;
+          return 255;
+        }
+
         commandLine.ShowHint();
-        return 128;
+        return 127;
       }
       catch (Exception e)
       {
         ConsoleLogger.Instance.Error(e.ToString());
-        return 256;
+        return 126;
       }
     }
   }
