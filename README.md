@@ -30,8 +30,11 @@ This repository contains tools for mantaining the company or private symbol stor
 ##### Supported platforms (same as .NET 5.0)
 - Windows x64/x86
 - Linux x64/arm64
-- MacOS x64
+- macOS x64
 
 ##### Tested on
 - Windows 10 Pro x64 20H2 Build 19042.804
+- Ubuntu 18.04.5 LTS 5.4.0-65-generic x86_64
 - Ubuntu 20.10 LTS 5.8.0-1011-raspi aarch64
+- macOS Big Sur 11.2.1 arm64 + Rosetta2
+- macOS Mojave 10.14.4 x64
