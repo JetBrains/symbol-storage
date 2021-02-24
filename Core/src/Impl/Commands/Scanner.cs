@@ -67,30 +67,31 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     private async Task ScanFile([NotNull] string sourceDir, [NotNull] string sourceFile, [NotNull] ITracer tracer, [NotNull] Statistics statistics)
     {
-      var sourceRelativeFile = Path.GetRelativePath(sourceDir, sourceFile);
-      tracer.Information($"  Scanning {sourceRelativeFile}...");
+      var srcFile = Path.GetRelativePath(sourceDir, sourceFile);
+      tracer.Information($"  Scanning {srcFile}...");
       foreach (var key in GetKeyInfos(tracer, statistics, sourceFile))
       {
-        var storageRelativeFile = key.Item1.Index;
-        if (!SymbolStoreKey.IsKeyValid(storageRelativeFile))
-          tracer.Error($"Invalid key index in file {storageRelativeFile}");
-        else if (key.Item2 == KeyType.Elf && Path.GetExtension(sourceFile) == ".debug" && !storageRelativeFile.EndsWith("/_.debug"))
+        var index = key.Item1.Index;
+        if (!SymbolStoreKey.IsKeyValid(index))
+          tracer.Error($"Invalid key index in file {index}");
+        else if (key.Item2 == KeyType.Elf && Path.GetExtension(sourceFile) == ".debug" && !index.EndsWith("/_.debug"))
         {
           // Bug: Check that ELF .debug was processed right way! See https://github.com/dotnet/symstore/issues/158
           tracer.Error($"ELF file {sourceFile} was processed incorrectly because Microsoft.SymbolStore doesn't support .debug extension");
         }
-        else if (
-          myCompressWPdb && key.Item2 == KeyType.WPdb ||
-          myCompressPe && key.Item2 == KeyType.Pe)
-        {
-          var packedStorageRelativeFile = Path.ChangeExtension(storageRelativeFile, PathUtil.GetPackedExtension(Path.GetExtension(storageRelativeFile)));
-          await myProcessCompressed(sourceDir, sourceRelativeFile, packedStorageRelativeFile);
-          if (myIsKeepNonCompressed)
-            await myProcessNormal(sourceDir, sourceRelativeFile, storageRelativeFile);
-        }
         else
         {
-          await myProcessNormal(sourceDir, sourceRelativeFile, storageRelativeFile);
+          var dstFile = index.NormalizeSystem();
+          if (
+            myCompressWPdb && key.Item2 == KeyType.WPdb ||
+            myCompressPe && key.Item2 == KeyType.Pe)
+          {
+            await myProcessCompressed(sourceDir, srcFile, Path.ChangeExtension(dstFile, PathUtil.GetPackedExtension(Path.GetExtension(dstFile))));
+            if (myIsKeepNonCompressed)
+              await myProcessNormal(sourceDir, srcFile, dstFile);
+          }
+          else
+            await myProcessNormal(sourceDir, srcFile, dstFile);
         }
       }
     }
