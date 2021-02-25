@@ -110,7 +110,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             myLogger.Info($"  Uploading {srcFile}");
             await using var memoryStream = new MemoryStream();
             await srcStorage.OpenForReading(srcFile, stream => stream.CopyTo(memoryStream));
-            await myStorage.CreateForWriting(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream.Length, memoryStream.Rewind());
+            await myStorage.CreateForWriting(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream);
             Interlocked.Add(ref totalSize, memoryStream.Length);
           }
 

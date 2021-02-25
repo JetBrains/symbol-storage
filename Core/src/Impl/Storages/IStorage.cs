@@ -19,7 +19,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     
     Task<TResult> OpenForReading<TResult>([NotNull] string file, [NotNull] Func<Stream, TResult> func);
     Task OpenForReading([NotNull] string file, [NotNull] Action<Stream> action);
-    Task CreateForWriting([NotNull] string file, AccessMode mode, long length, [NotNull] Stream stream);
+    Task CreateForWriting([NotNull] string file, AccessMode mode, [NotNull] Stream stream);
 
     Task<bool> IsEmpty();
     

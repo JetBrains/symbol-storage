@@ -7,11 +7,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 {
   internal static class StorageUtil
   {
-    private static readonly Stream ourStream = new MemoryStream(Array.Empty<byte>(), false);
+    private static readonly Stream ourEmptyStream = new MemoryStream(Array.Empty<byte>(), false);
 
     public static Task CreateEmpty(this IStorage storage, [NotNull] string file, AccessMode mode)
     {
-      return storage.CreateForWriting(file, mode, 0, ourStream);
+      return storage.CreateForWriting(file, mode, ourEmptyStream);
     }
   }
 }

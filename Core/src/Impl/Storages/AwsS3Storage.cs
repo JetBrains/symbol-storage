@@ -158,22 +158,18 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     }
 
     public Task OpenForReading(string file, Action<Stream> action) => OpenForReading<object>(file,
-        x =>
-          {
-            action(x);
-            return null;
-          });
+      x =>
+        {
+          action(x);
+          return null;
+        });
 
-    public async Task CreateForWriting(string file, AccessMode mode, long length, Stream stream)
+    public async Task CreateForWriting(string file, AccessMode mode, Stream stream)
     {
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
-      if (stream.CanSeek)
-      {
-        if (stream.Length - stream.Position != length)
-          throw new ArgumentException(nameof(length));
-      }
-
+      if (!stream.CanSeek)
+        throw new ArgumentException("The stream should support the seek operation", nameof(stream));
       var key = file.CheckSystemFile().NormalizeLinux();
       await myS3Client.PutObjectAsync(new PutObjectRequest
         {
@@ -181,10 +177,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           Key = key,
           InputStream = stream,
           AutoCloseStream = false,
-          AutoResetStreamPosition = false,
           Headers =
             {
-              ContentLength = length
+              ContentLength = stream.Length
             },
           CannedACL = GetS3CannedAcl(mode, mySupportAcl)
         });

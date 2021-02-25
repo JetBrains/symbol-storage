@@ -243,7 +243,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           logger.Info($"The tag file {tagFile} will be overwritten");
           await using var stream = new MemoryStream();
           TagUtil.WriteTagScript(tag, stream);
-          await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream.Length, stream.Rewind());
+          await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream);
         }
       }
 

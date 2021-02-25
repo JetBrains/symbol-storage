@@ -100,9 +100,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public Task<TResult> OpenForReading<TResult>(string file, Func<Stream, TResult> func)
     {
-      file.CheckSystemFile();
       if (func == null)
         throw new ArgumentNullException(nameof(func));
+      file.CheckSystemFile();
       return Task.Run(() =>
         {
           using var stream = File.OpenRead(Path.Combine(myRootDir, file));
@@ -119,19 +119,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public Task CreateForWriting(string file, AccessMode mode, long length, Stream stream)
+    public Task CreateForWriting(string file, AccessMode mode, Stream stream)
     {
-      file.CheckSystemFile();
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
-      if (stream.CanSeek)
-      {
-        if (stream.Length - stream.Position != length)
-          throw new ArgumentException(nameof(length));
-      }
-
+      if (!stream.CanSeek)
+        throw new ArgumentException("The stream should support the seek operation", nameof(stream));
+      file.CheckSystemFile();
       return Task.Run(() =>
         {
+          stream.Seek(0, SeekOrigin.Begin);
+          var length = stream.Length;
           var fullFile = Path.Combine(myRootDir, file);
           Directory.CreateDirectory(Path.GetDirectoryName(fullFile) ?? "");
           using var outStream = File.Create(fullFile);

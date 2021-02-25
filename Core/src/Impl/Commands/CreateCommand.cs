@@ -66,12 +66,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var statistics = await new Scanner(myLogger, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
         async (srcDir, srcFile, dstFile) =>
           {
-            await WriteData(Path.Combine(srcDir, srcFile), (len, stream) => myStorage.CreateForWriting(dstFile, AccessMode.Public, len, stream));
+            await WriteData(Path.Combine(srcDir, srcFile), stream => myStorage.CreateForWriting(dstFile, AccessMode.Public, stream));
             dstFiles.Add(dstFile);
           },
         async (srcDir, srcFile, dstFile) =>
           {
-            await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, (len, stream) => myStorage.CreateForWriting(dstFile, AccessMode.Public, len, stream));
+            await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, stream => myStorage.CreateForWriting(dstFile, AccessMode.Public, stream));
             dstFiles.Add(dstFile);
           }).Execute();
       myLogger.Info($"[{DateTime.Now:s}] Done with data (warnings: {statistics.Warnings}, errors: {statistics.Errors})");
@@ -103,21 +103,21 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         }, stream);
 
       var tagFile = Path.Combine(TagUtil.TagDirectory, myProduct, myProduct + '-' + myVersion + '-' + fileId.ToString("N") + TagUtil.TagExtension);
-      await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream.Length, stream.Rewind());
+      await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream);
     }
 
     private static async Task WriteData(
       [NotNull] string sourceFile,
-      [NotNull] Func<long, Stream, Task> writeStorageFile)
+      [NotNull] Func<Stream, Task> writeStorageFile)
     {
       await using var stream = File.OpenRead(sourceFile);
-      await writeStorageFile(stream.Length, stream);
+      await writeStorageFile(stream);
     }
 
     private static async Task WriteDataPacked(
       [NotNull] string sourceFile,
       [NotNull] string packedStorageRelativeFile,
-      [NotNull] Func<long, Stream, Task> writeStorageFile)
+      [NotNull] Func<Stream, Task> writeStorageFile)
     {
       if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         throw new PlatformNotSupportedException("The Windows PDB and PE compression works only on Windows");
@@ -132,7 +132,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
         await using var stream = File.Open(tempFile, FileMode.Open, FileAccess.ReadWrite);
         PatchCompressed(File.GetLastWriteTime(sourceFile), stream);
-        await writeStorageFile(stream.Length, stream.Rewind());
+        await writeStorageFile(stream);
       }
       finally
       {
