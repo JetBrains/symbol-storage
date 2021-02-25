@@ -9,6 +9,7 @@ using Amazon.CloudFront.Model;
 using Amazon.S3;
 using Amazon.S3.Model;
 using JetBrains.Annotations;
+using ThirdParty.MD5;
 
 namespace JetBrains.SymbolStorage.Impl.Storages
 {
@@ -171,6 +172,10 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       if (!stream.CanSeek)
         throw new ArgumentException("The stream should support the seek operation", nameof(stream));
       var key = file.CheckSystemFile().NormalizeLinux();
+      stream.Seek(0, SeekOrigin.Begin);
+      string md5Hash;
+      using (var md5Alg = new MD5Managed())
+        md5Hash = Convert.ToBase64String(await md5Alg.ComputeHashAsync(stream));
       await myS3Client.PutObjectAsync(new PutObjectRequest
         {
           BucketName = myBucketName,
@@ -179,7 +184,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           AutoCloseStream = false,
           Headers =
             {
-              ContentLength = stream.Length
+              ContentLength = stream.Length,
+              ContentMD5 = md5Hash
             },
           CannedACL = GetS3CannedAcl(mode, mySupportAcl)
         });
