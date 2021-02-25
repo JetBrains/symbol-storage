@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Reflection;
+using Amazon;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl;
 using JetBrains.SymbolStorage.Impl.Commands;
@@ -45,6 +46,7 @@ namespace JetBrains.SymbolStorage
 
         var dirOption = commandLine.Option("-d|--directory", "The local directory with symbol server storage.", CommandOptionType.SingleValue);
         var awsS3BucketNameOption = commandLine.Option("-a|--aws-s3", $"The AWS S3 bucket with symbol server storage. The access and private keys will be asked in console. Use {AccessUtil.AwsS3AccessKeyEnvironmentVariable}, {AccessUtil.AwsS3SecretKeyEnvironmentVariable} and {AccessUtil.AwsCloudFrontDistributionIdEnvironmentVariable} environment variables for unattended mode.", CommandOptionType.SingleValue);
+        var awsS3RegionEndpointOption = commandLine.Option("-ar|--aws-s3-region", $"The AWS S3 region endpoint with symbol server storage. Default is {AccessUtil.DefaultAwsS3RegionEndpoint}.", CommandOptionType.SingleValue);
 
         if (mode == MainMode.Full)
         {
@@ -56,7 +58,7 @@ namespace JetBrains.SymbolStorage
               var fixOption = x.Option("-f|--fix", "Fix known issues if possible.", CommandOptionType.NoValue);
               x.OnExecute(() => new ValidateCommand(
                 ConsoleLogger.Instance,
-                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value()),
+                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 aclOption.HasValue(),
                 fixOption.HasValue()).Execute());
             });
@@ -71,7 +73,7 @@ namespace JetBrains.SymbolStorage
               var excFilterVersionOption = x.Option("-fve|--version-exclude-filter", "Select wildcard for exclude version filtering.", CommandOptionType.MultipleValue);
               x.OnExecute(() => new ListCommand(
                 ConsoleLogger.Instance,
-                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value()),
+                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 incFilterProductOption.Values,
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
@@ -88,7 +90,7 @@ namespace JetBrains.SymbolStorage
               var excFilterVersionOption = x.Option("-fve|--version-exclude-filter", "Select wildcard for exclude version filtering.", CommandOptionType.MultipleValue);
               x.OnExecute(() => new DeleteCommand(
                 ConsoleLogger.Instance,
-                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value()),
+                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 incFilterProductOption.Values,
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
@@ -103,7 +105,7 @@ namespace JetBrains.SymbolStorage
             var newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
             x.OnExecute(() => new NewCommand(
               ConsoleLogger.Instance,
-              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value()),
+              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
               AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).Execute());
           });
 
@@ -115,7 +117,7 @@ namespace JetBrains.SymbolStorage
             var newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
             x.OnExecute(() => new UploadCommand(
               ConsoleLogger.Instance,
-              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value()),
+              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
               sourceOption.Value(),
               AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).Execute());
           });
@@ -134,7 +136,7 @@ namespace JetBrains.SymbolStorage
             var sourcesOption = x.Argument("path [path [...]]", "Source directories or files with symbols, executables and shared libraries.", true);
             x.OnExecute(async () =>
               {
-                var storage = AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value());
+                var storage = AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value());
                 var newStorageFormat = AccessUtil.GetStorageFormat(newStorageFormatOption.Value());
                 
                 var tempDir = Path.Combine(Path.GetTempPath(), "storage_" + Guid.NewGuid().ToString("D"));

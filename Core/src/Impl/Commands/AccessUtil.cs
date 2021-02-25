@@ -1,4 +1,5 @@
 ﻿using System;
+using Amazon;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Storages;
 
@@ -14,20 +15,31 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public const string LowerStorageFormat = "lower";
     public const string UpperStorageFormat = "upper";
 
+    public static readonly string DefaultAwsS3RegionEndpoint = RegionEndpoint.EUWest1.SystemName;
+
     [NotNull]
-    public static IStorage GetStorage([CanBeNull] string dir, [CanBeNull] string awsS3BucketName)
+    public static IStorage GetStorage([CanBeNull] string dir, [CanBeNull] string awsS3BucketName, [CanBeNull] string awsS3RegionEndpoint)
     {
       if (!string.IsNullOrEmpty(dir) && string.IsNullOrEmpty(awsS3BucketName))
-        return new FileSystemStorage(dir);
+        return GetFileSystemStorage(dir);
       if (string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(awsS3BucketName))
-      {
-        var accessKey = Environment.GetEnvironmentVariable(AwsS3AccessKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 access key");
-        var secretKey = Environment.GetEnvironmentVariable(AwsS3SecretKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 secret key");
-        var cloudFrontDistributionId = Environment.GetEnvironmentVariable(AwsCloudFrontDistributionIdEnvironmentVariable).ConvertSpecialEmptyValue() ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS Cloud Front distribution identifier");
-        return new AwsS3Storage(accessKey, secretKey, awsS3BucketName, cloudFrontDistributionId);
-      }
-
+        return GetAwsS3Storage(awsS3BucketName, awsS3RegionEndpoint ?? DefaultAwsS3RegionEndpoint);
       throw new Exception("The storage location option should be defined");
+    }
+
+    [NotNull]
+    private static IStorage GetFileSystemStorage([NotNull] string dir)
+    {
+      return new FileSystemStorage(dir);
+    }
+
+    [NotNull]
+    private static IStorage GetAwsS3Storage([NotNull] string awsS3BucketName, [NotNull] string awsS3RegionEndpoint)
+    {
+      var accessKey = Environment.GetEnvironmentVariable(AwsS3AccessKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 access key");
+      var secretKey = Environment.GetEnvironmentVariable(AwsS3SecretKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 secret key");
+      var cloudFrontDistributionId = Environment.GetEnvironmentVariable(AwsCloudFrontDistributionIdEnvironmentVariable).ConvertSpecialEmptyValue() ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS Cloud Front distribution identifier");
+      return new AwsS3Storage(accessKey, secretKey, awsS3BucketName, awsS3RegionEndpoint, cloudFrontDistributionId);
     }
 
     [CanBeNull]

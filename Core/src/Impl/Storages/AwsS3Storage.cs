@@ -19,19 +19,22 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     private readonly string myCloudFrontDistributionId;
     private readonly IAmazonS3 myS3Client;
     private readonly IAmazonCloudFront myCloudFrontClient;
+    private readonly bool mySupportAcl;
 
     public AwsS3Storage(
       [NotNull] string accessKey,
       [NotNull] string secretKey,
       [NotNull] string bucketName,
+      [NotNull] string region,
       [CanBeNull] string cloudFrontDistributionId = null,
-      [CanBeNull] string region = null)
+      bool supportAcl= true)
     {
-      var regionEndpoint = region != null ? RegionEndpoint.GetBySystemName(region) : RegionEndpoint.EUWest1;
+      var regionEndpoint = RegionEndpoint.GetBySystemName(region);
       myS3Client = new AmazonS3Client(accessKey, secretKey, regionEndpoint);
       myCloudFrontClient = new AmazonCloudFrontClient(accessKey, secretKey, regionEndpoint);
       myBucketName = bucketName ?? throw new ArgumentNullException(nameof(bucketName));
       myCloudFrontDistributionId = cloudFrontDistributionId;
+      mySupportAcl = supportAcl;
     }
 
     public async Task<bool> Exists(string file)
@@ -76,7 +79,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           SourceKey = srcKey,
           DestinationBucket = myBucketName,
           DestinationKey = dstKey,
-          CannedACL = GetS3CannedAcl(mode)
+          CannedACL = GetS3CannedAcl(mode, mySupportAcl)
         });
       await myS3Client.DeleteObjectAsync(new DeleteObjectRequest
         {
@@ -96,11 +99,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return response.ContentLength;
     }
 
-    public bool SupportAccessMode => true;
+    public bool SupportAccessMode => mySupportAcl;
 
     public async Task<AccessMode> GetAccessMode(string file)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
+      if (!mySupportAcl)
+        return AccessMode.Unknown;
       var respond = await myS3Client.GetACLAsync(new GetACLRequest
         {
           BucketName = myBucketName,
@@ -130,12 +135,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     public async Task SetAccessMode(string file, AccessMode mode)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
-      await myS3Client.PutACLAsync(new PutACLRequest
-        {
-          BucketName = myBucketName,
-          Key = key,
-          CannedACL = GetS3CannedAcl(mode)
-        });
+      if (mySupportAcl)
+        await myS3Client.PutACLAsync(new PutACLRequest
+          {
+            BucketName = myBucketName,
+            Key = key,
+            CannedACL = GetS3CannedAcl(mode, true)
+          });
     }
 
     public async Task<TResult> OpenForReading<TResult>(string file, Func<Stream, TResult> func)
@@ -180,7 +186,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
             {
               ContentLength = length
             },
-          CannedACL = GetS3CannedAcl(mode)
+          CannedACL = GetS3CannedAcl(mode, mySupportAcl)
         });
     }
 
@@ -238,11 +244,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    [NotNull]
-    private static S3CannedACL GetS3CannedAcl(AccessMode mode) => mode switch
+    [CanBeNull]
+    private static S3CannedACL GetS3CannedAcl(AccessMode mode, bool supportAcl) => mode switch
       {
-        AccessMode.Private => S3CannedACL.Private,
-        AccessMode.Public => S3CannedACL.PublicRead,
+        AccessMode.Private => supportAcl ? S3CannedACL.Private : null,
+        AccessMode.Public => supportAcl ? S3CannedACL.PublicRead : null,
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
       };
 
