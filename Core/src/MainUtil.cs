@@ -1,7 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using Amazon;
+using System.Threading.Tasks;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl;
 using JetBrains.SymbolStorage.Impl.Commands;
@@ -133,12 +134,12 @@ namespace JetBrains.SymbolStorage
             var newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
             var productArgument = x.Argument("product", "The product name.");
             var versionArgument = x.Argument("version", "The product version.");
-            var sourcesOption = x.Argument("path [path [...]]", "Source directories or files with symbols, executables and shared libraries.", true);
+            var sourcesOption = x.Argument("path [path [...]] or @file", "Source directories or files with symbols, executables and shared libraries.", true);
             x.OnExecute(async () =>
               {
                 var storage = AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value());
                 var newStorageFormat = AccessUtil.GetStorageFormat(newStorageFormatOption.Value());
-                
+                var sources = await ParsePaths(sourcesOption.Values);
                 var tempDir = Path.Combine(Path.GetTempPath(), "storage_" + Guid.NewGuid().ToString("D"));
                 try
                 {
@@ -153,7 +154,7 @@ namespace JetBrains.SymbolStorage
                     compressWPdbOption.HasValue(),
                     keepNonCompressedOption.HasValue(),
                     propertiesOption.Values,
-                    sourcesOption.Values).Execute();
+                    sources).Execute();
                   if (res != 0)
                     return res;
 
@@ -186,6 +187,26 @@ namespace JetBrains.SymbolStorage
         ConsoleLogger.Instance.Error(e.ToString());
         return 126;
       }
+    }
+
+    private static async Task<IReadOnlyCollection<string>> ParsePaths([NotNull] IEnumerable<string> paths)
+    {
+      if (paths == null)
+        throw new ArgumentNullException(nameof(paths));
+      var res = new List<string>();
+      foreach (var path in paths)
+        if (path.StartsWith('@'))
+        {
+          using var reader = new StreamReader(path.Substring(1));
+          string line;
+          while ((line = await reader.ReadLineAsync()) != null)
+            if (line.Length != 0)
+              res.Add(line);
+        }
+        else
+          res.Add(path);
+
+      return res;
     }
   }
 }
