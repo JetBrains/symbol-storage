@@ -65,46 +65,74 @@ namespace JetBrains.SymbolStorage
                 fixOption.HasValue()).Execute());
             });
 
+          static void FilterOptions(
+            CommandLineApplication x,
+            out CommandOption incFilterProductOption,
+            out CommandOption excFilterProductOption,
+            out CommandOption incFilterVersionOption,
+            out CommandOption excFilterVersionOption,
+            out CommandOption safetyPeriodOption)
+          {
+            incFilterProductOption = x.Option("-fpi|--product-include-filter", "Select wildcard for include product filtering.", CommandOptionType.MultipleValue);
+            excFilterProductOption = x.Option("-fpe|--product-exclude-filter", "Select wildcard for exclude product filtering.", CommandOptionType.MultipleValue);
+            incFilterVersionOption = x.Option("-fvi|--version-include-filter", "Select wildcard for include version filtering.", CommandOptionType.MultipleValue);
+            excFilterVersionOption = x.Option("-fve|--version-exclude-filter", "Select wildcard for exclude version filtering.", CommandOptionType.MultipleValue);
+            safetyPeriodOption = x.Option("-sp|--safety-period", $"The safety period for young files. {AccessUtil.DefaultSafetyPeriod.Days:D} days by default.", CommandOptionType.MultipleValue);
+          }
+
           commandLine.Command("list", x =>
             {
               x.HelpOption("-h|--help");
               x.Description = "List storage metadata information";
-              var incFilterProductOption = x.Option("-fpi|--product-include-filter", "Select wildcard for include product filtering.", CommandOptionType.MultipleValue);
-              var excFilterProductOption = x.Option("-fpe|--product-exclude-filter", "Select wildcard for exclude product filtering.", CommandOptionType.MultipleValue);
-              var incFilterVersionOption = x.Option("-fvi|--version-include-filter", "Select wildcard for include version filtering.", CommandOptionType.MultipleValue);
-              var excFilterVersionOption = x.Option("-fve|--version-exclude-filter", "Select wildcard for exclude version filtering.", CommandOptionType.MultipleValue);
+              FilterOptions(x,
+                out var incFilterProductOption,
+                out var excFilterProductOption,
+                out var incFilterVersionOption,
+                out var excFilterVersionOption,
+                out var safetyPeriodOption);
               x.OnExecute(() => new ListCommand(
                 ConsoleLogger.Instance,
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 incFilterProductOption.Values,
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
-                excFilterVersionOption.Values).Execute());
+                excFilterVersionOption.Values,
+                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).Execute());
             });
 
           commandLine.Command("delete", x =>
             {
               x.HelpOption("-h|--help");
               x.Description = "Delete storage metadata and referenced data files";
-              var incFilterProductOption = x.Option("-fpi|--product-include-filter", "Select wildcard for include product filtering.", CommandOptionType.MultipleValue);
-              var excFilterProductOption = x.Option("-fpe|--product-exclude-filter", "Select wildcard for exclude product filtering.", CommandOptionType.MultipleValue);
-              var incFilterVersionOption = x.Option("-fvi|--version-include-filter", "Select wildcard for include version filtering.", CommandOptionType.MultipleValue);
-              var excFilterVersionOption = x.Option("-fve|--version-exclude-filter", "Select wildcard for exclude version filtering.", CommandOptionType.MultipleValue);
+              FilterOptions(x,
+                out var incFilterProductOption,
+                out var excFilterProductOption,
+                out var incFilterVersionOption,
+                out var excFilterVersionOption,
+                out var safetyPeriodOption);
               x.OnExecute(() => new DeleteCommand(
                 ConsoleLogger.Instance,
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 incFilterProductOption.Values,
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
-                excFilterVersionOption.Values).Execute());
+                excFilterVersionOption.Values,
+                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).Execute());
             });
+        }
+
+        static void StorageOptions(
+          CommandLineApplication x,
+          out CommandOption newStorageFormatOption)
+        {
+          newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
         }
 
         commandLine.Command("new", x =>
           {
             x.HelpOption("-h|--help");
             x.Description = "Create empty storage";
-            var newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
+            StorageOptions(x, out var newStorageFormatOption);
             x.OnExecute(() => new NewCommand(
               ConsoleLogger.Instance,
               AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
@@ -116,7 +144,7 @@ namespace JetBrains.SymbolStorage
             x.HelpOption("-h|--help");
             x.Description = "Upload one storage to another one with the source storage inconsistency check";
             var sourceOption = x.Option("-s|--source", "Source storage directory.", CommandOptionType.SingleValue);
-            var newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
+            StorageOptions(x, out var newStorageFormatOption);
             x.OnExecute(() => new UploadCommand(
               ConsoleLogger.Instance,
               AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
@@ -132,7 +160,7 @@ namespace JetBrains.SymbolStorage
             var compressPeOption = x.Option("-cpe|--compress-pe", "Enable compression for PE files. Windows only. Incompatible with the SSQP.", CommandOptionType.NoValue);
             var keepNonCompressedOption = x.Option("-k|--keep-non-compressed", "Store also non-compressed version in storage.", CommandOptionType.NoValue);
             var propertiesOption = x.Option("-p|--property", "The property to be stored in metadata in following format: <key1>=<value1>[,<key2>=<value2>[,...]]. Can be declared many times.", CommandOptionType.MultipleValue);
-            var newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
+            StorageOptions(x, out var newStorageFormatOption);
             var productArgument = x.Argument("product", "The product name.");
             var versionArgument = x.Argument("version", "The product version.");
             var sourcesOption = x.Argument("path [path [...]] or @file", "Source directories or files with symbols, executables and shared libraries.", true);
@@ -189,6 +217,11 @@ namespace JetBrains.SymbolStorage
         ConsoleLogger.Instance.Error(e.ToString());
         return 126;
       }
+    }
+
+    private static TimeSpan ParseDays([CanBeNull] string days, TimeSpan defaultDays)
+    {
+      return days != null ? TimeSpan.FromDays(ulong.Parse(days)) : defaultDays;
     }
 
     private static async Task<IReadOnlyCollection<string>> ParsePaths([NotNull] IEnumerable<string> paths)

@@ -15,6 +15,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IReadOnlyCollection<string> myExcProductWildcards;
     private readonly IReadOnlyCollection<string> myIncVersionWildcards;
     private readonly IReadOnlyCollection<string> myExcVersionWildcards;
+    private readonly TimeSpan mySafetyPeriod;
 
     public ListCommand(
       [NotNull] ILogger logger,
@@ -22,7 +23,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       [NotNull] IReadOnlyCollection<string> incProductWildcards,
       [NotNull] IReadOnlyCollection<string> excProductWildcards,
       [NotNull] IReadOnlyCollection<string> incVersionWildcards,
-      [NotNull] IReadOnlyCollection<string> excVersionWildcards)
+      [NotNull] IReadOnlyCollection<string> excVersionWildcards,
+      TimeSpan safetyPeriod)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -30,6 +32,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myExcProductWildcards = excProductWildcards ?? throw new ArgumentNullException(nameof(excProductWildcards));
       myIncVersionWildcards = incVersionWildcards ?? throw new ArgumentNullException(nameof(incVersionWildcards));
       myExcVersionWildcards = excVersionWildcards ?? throw new ArgumentNullException(nameof(excVersionWildcards));
+      mySafetyPeriod = safetyPeriod;
     }
 
     public async Task<int> Execute()
@@ -39,7 +42,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         myIncProductWildcards,
         myExcProductWildcards,
         myIncVersionWildcards,
-        myExcVersionWildcards);
+        myExcVersionWildcards,
+        mySafetyPeriod);
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);
       myLogger.Info($"[{DateTime.Now:s}] Done (tags: {tagItems.Count})");

@@ -91,10 +91,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     }
 
     public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItems(
-      IReadOnlyCollection<string> incProductWildcards,
-      IReadOnlyCollection<string> excProductWildcards,
-      IReadOnlyCollection<string> incVersionWildcards,
-      IReadOnlyCollection<string> excVersionWildcards)
+      [NotNull] IReadOnlyCollection<string> incProductWildcards,
+      [NotNull] IReadOnlyCollection<string> excProductWildcards,
+      [NotNull] IReadOnlyCollection<string> incVersionWildcards,
+      [NotNull] IReadOnlyCollection<string> excVersionWildcards,
+      TimeSpan safetyPeriod)
     {
       var tagItems = await LoadTagItems();
       var incProductRegexs = incProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
@@ -107,7 +108,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         if ((incProductRegexs.Length == 0 || incProductRegexs.Any(y => y.IsMatch(tagItem.Value.Product ?? ""))) &&
             (incVersionRegexs.Length == 0 || incVersionRegexs.Any(y => y.IsMatch(tagItem.Value.Version ?? ""))) &&
             excProductRegexs.All(y => !y.IsMatch(tagItem.Value.Product ?? "")) &&
-            excVersionRegexs.All(y => !y.IsMatch(tagItem.Value.Version ?? "")))
+            excVersionRegexs.All(y => !y.IsMatch(tagItem.Value.Version ?? "")) &&
+            tagItem.Value.CreationUtcTime + safetyPeriod < DateTime.UtcNow)
           inc.Add(tagItem);
         else
           exc.Add(tagItem);

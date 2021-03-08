@@ -17,6 +17,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public static readonly string DefaultAwsS3RegionEndpoint = RegionEndpoint.EUWest1.SystemName;
 
+    public static readonly TimeSpan DefaultSafetyPeriod = TimeSpan.FromDays(90);
+
     [NotNull]
     public static IStorage GetStorage([CanBeNull] string dir, [CanBeNull] string awsS3BucketName, [CanBeNull] string awsS3RegionEndpoint)
     {

@@ -16,17 +16,20 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IReadOnlyCollection<string> myExcProductWildcards;
     private readonly IReadOnlyCollection<string> myIncVersionWildcards;
     private readonly IReadOnlyCollection<string> myExcVersionWildcards;
+    private readonly TimeSpan mySafetyPeriod;
 
     public DeleteCommand(
       [NotNull] ILogger logger,
       [NotNull] IStorage storage,
-      [NotNull] IReadOnlyCollection<string> incProductWildcards,
+      [NotNull] IReadOnlyCollection<string> incProductWildcards, 
       [NotNull] IReadOnlyCollection<string> excProductWildcards,
       [NotNull] IReadOnlyCollection<string> incVersionWildcards,
-      [NotNull] IReadOnlyCollection<string> excVersionWildcards)
+      [NotNull] IReadOnlyCollection<string> excVersionWildcards,
+      TimeSpan safetyPeriod)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
+      mySafetyPeriod = safetyPeriod;
       myIncProductWildcards = incProductWildcards ?? throw new ArgumentNullException(nameof(incProductWildcards));
       myExcProductWildcards = excProductWildcards ?? throw new ArgumentNullException(nameof(excProductWildcards));
       myIncVersionWildcards = incVersionWildcards ?? throw new ArgumentNullException(nameof(incVersionWildcards));
@@ -45,7 +48,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           myIncProductWildcards,
           myExcProductWildcards,
           myIncVersionWildcards,
-          myExcVersionWildcards);
+          myExcVersionWildcards,
+          mySafetyPeriod);
         validator.DumpProducts(incTagItems);
         validator.DumpProperties(incTagItems);
         deleteTags = incTagItems.Count;
