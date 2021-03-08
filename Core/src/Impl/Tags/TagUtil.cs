@@ -102,26 +102,24 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     {
       if (list == null)
         throw new ArgumentNullException(nameof(list));
-      var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-      var res = new List<KeyValuePair<string, string>>();
+      var res = new SortedList<string, string>(StringComparer.OrdinalIgnoreCase);
       foreach (var str in list.SelectMany(x => x.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)))
       {
         var parts = str.Split('=');
         if (parts.Length != 2)
           throw new Exception($"Invalid property format {str}");
         var key = parts[0];
-        var value = parts[1]; 
+        var value = parts[1];
         if (!key.All(IsValidPropertyKey))
           throw new Exception("Invalid property key");
         if (!key.All(IsValidPropertyValue))
           throw new Exception("Invalid property value");
-        if (keys.Contains(key))
+        if (res.ContainsKey(key))
           throw new Exception($"Property {key} was defined twice");
-        keys.Add(key);
-        res.Add(new KeyValuePair<string, string>(key, value));
+        res.Add(key, value);
       }
 
-      return res.OrderBy(x => x.Key, StringComparer.Ordinal).ToList();
+      return res.ToList();
     }
 
     private static bool IsValidPropertyKey(char c) =>
