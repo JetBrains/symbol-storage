@@ -21,7 +21,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly bool myIsKeepNonCompressed;
     private readonly ILogger myLogger;
     private readonly string myProduct;
-    private readonly IEnumerable<string> myProperties;
+    private readonly IEnumerable<KeyValuePair<string, string>> myProperties;
     private readonly IReadOnlyCollection<string> mySources;
     private readonly IStorage myStorage;
     private readonly string myToolId;
@@ -37,7 +37,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       bool isCompressPe,
       bool isCompressWPdb,
       bool isKeepNonCompressed,
-      [NotNull] IEnumerable<string> properties,
+      [NotNull] IEnumerable<KeyValuePair<string, string>> properties,
       [NotNull] IReadOnlyCollection<string> sources)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -98,7 +98,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           Product = myProduct,
           Version = myVersion,
           CreationUtcTime = DateTime.UtcNow,
-          Properties = myProperties.ToTagProperties(),
+          Properties = myProperties.Select(x => new TagKeyValue
+            {
+              Key = x.Key,
+              Value = x.Value
+            }).ToArray(),
           Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).ToArray()
         }, stream);
 

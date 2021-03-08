@@ -98,19 +98,19 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       || c == '.';
 
     [NotNull]
-    public static TagKeyValue[] ToTagProperties([NotNull] this IEnumerable<string> list)
+    public static IReadOnlyCollection<KeyValuePair<string, string>> ParseProperties([NotNull] this IEnumerable<string> list)
     {
       if (list == null)
         throw new ArgumentNullException(nameof(list));
       var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-      var res = new List<TagKeyValue>();
-      foreach (var str in list)
+      var res = new List<KeyValuePair<string, string>>();
+      foreach (var str in list.SelectMany(x => x.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)))
       {
         var parts = str.Split('=');
         if (parts.Length != 2)
           throw new Exception($"Invalid property format {str}");
         var key = parts[0];
-        var value = parts[1];
+        var value = parts[1]; 
         if (!key.All(IsValidPropertyKey))
           throw new Exception("Invalid property key");
         if (!key.All(IsValidPropertyValue))
@@ -118,14 +118,10 @@ namespace JetBrains.SymbolStorage.Impl.Tags
         if (keys.Contains(key))
           throw new Exception($"Property {key} was defined twice");
         keys.Add(key);
-        res.Add(new TagKeyValue
-          {
-            Key = key,
-            Value = value
-          });
+        res.Add(new KeyValuePair<string, string>(key, value));
       }
 
-      return res.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray();
+      return res.OrderBy(x => x.Key, StringComparer.Ordinal).ToList();
     }
 
     private static bool IsValidPropertyKey(char c) =>

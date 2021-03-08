@@ -8,6 +8,7 @@ using JetBrains.SymbolStorage.Impl;
 using JetBrains.SymbolStorage.Impl.Commands;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
+using JetBrains.SymbolStorage.Impl.Tags;
 using Microsoft.Extensions.CommandLineUtils;
 
 namespace JetBrains.SymbolStorage
@@ -130,7 +131,7 @@ namespace JetBrains.SymbolStorage
             var compressWPdbOption = x.Option("-cwpdb|--compress-windows-pdb", "Enable compression for Windows PDB files. Windows only. Incompatible with the SSQP.", CommandOptionType.NoValue);
             var compressPeOption = x.Option("-cpe|--compress-pe", "Enable compression for PE files. Windows only. Incompatible with the SSQP.", CommandOptionType.NoValue);
             var keepNonCompressedOption = x.Option("-k|--keep-non-compressed", "Store also non-compressed version in storage.", CommandOptionType.NoValue);
-            var propertiesOption = x.Option("-p|--property", "The property to be stored in metadata in following format: <key>=<value>. Can be declared many times.", CommandOptionType.MultipleValue);
+            var propertiesOption = x.Option("-p|--property", "The property to be stored in metadata in following format: <key1>=<value1>[,<key2>=<value2>[,...]]. Can be declared many times.", CommandOptionType.MultipleValue);
             var newStorageFormatOption = x.Option("-nsf|--new-storage-format", $"Select data files format for a new storage: {AccessUtil.NormalStorageFormat} (default), {AccessUtil.LowerStorageFormat}, {AccessUtil.UpperStorageFormat}.", CommandOptionType.SingleValue);
             var productArgument = x.Argument("product", "The product name.");
             var versionArgument = x.Argument("version", "The product version.");
@@ -140,6 +141,7 @@ namespace JetBrains.SymbolStorage
                 var storage = AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value());
                 var newStorageFormat = AccessUtil.GetStorageFormat(newStorageFormatOption.Value());
                 var sources = await ParsePaths(sourcesOption.Values);
+                var properties = propertiesOption.Values.ParseProperties();
                 var tempDir = Path.Combine(Path.GetTempPath(), "storage_" + Guid.NewGuid().ToString("D"));
                 try
                 {
@@ -153,7 +155,7 @@ namespace JetBrains.SymbolStorage
                     compressPeOption.HasValue(),
                     compressWPdbOption.HasValue(),
                     keepNonCompressedOption.HasValue(),
-                    propertiesOption.Values,
+                    properties,
                     sources).Execute();
                   if (res != 0)
                     return res;
