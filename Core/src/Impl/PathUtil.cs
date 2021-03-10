@@ -147,12 +147,16 @@ namespace JetBrains.SymbolStorage.Impl
     [NotNull]
     public static string NormalizeLinux([NotNull] this string path)
     {
+      if (path == null)
+        throw new ArgumentNullException(nameof(path));
       return path.Replace('\\', '/');
     }
 
     [NotNull]
     public static string NormalizeSystem([NotNull] this string path)
     {
+      if (path == null)
+        throw new ArgumentNullException(nameof(path));
       return path.Replace('/', Path.DirectorySeparatorChar);
     }
   }

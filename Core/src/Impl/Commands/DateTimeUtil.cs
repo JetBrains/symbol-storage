@@ -7,7 +7,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public static ushort ToDosDate(this DateTime date)
     {
       if (date.Year < 1980)
-        throw new ApplicationException("The year should be 1980+");
+        throw new Exception("The year should be 1980+");
       return (ushort) (
         ((date.Year - 1980) << 9) |
         (date.Month << 5) |
@@ -24,7 +24,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public static DateTime ToDateTime(ushort date, ushort time)
     {
-      return new DateTime(
+      return new(
         (date >> 9) + 1980,
         (date >> 5) & 0xF,
         date & 0x1F,
