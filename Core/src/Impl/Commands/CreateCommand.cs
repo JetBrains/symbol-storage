@@ -13,7 +13,7 @@ using Microsoft.Deployment.Compression.Cab;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class CreateCommand
+  internal sealed class CreateCommand : ICommand
   {
     private readonly StorageFormat myExpectedStorageFormat;
     private readonly bool myIsCompressPe;
@@ -53,27 +53,27 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       mySources = sources ?? throw new ArgumentNullException(nameof(sources));
     }
 
-    public async Task<int> Execute()
+    public async Task<int> ExecuteAsync()
     {
       if (!myProduct.ValidateProduct())
         throw new ApplicationException($"Invalid product name {myProduct}");
       if (!myVersion.ValidateVersion())
         throw new ApplicationException($"Invalid version {myVersion}");
 
-      await new Validator(myLogger, myStorage).CreateStorageMarkers(myExpectedStorageFormat);
+      await new Validator(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
 
       var dstFiles = new ConcurrentBag<string>();
       var statistics = await new Scanner(myLogger, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
         async (srcDir, srcFile, dstFile) =>
           {
-            await WriteData(Path.Combine(srcDir, srcFile), stream => myStorage.CreateForWriting(dstFile, AccessMode.Public, stream));
+            await WriteData(Path.Combine(srcDir, srcFile), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
             dstFiles.Add(dstFile);
           },
         async (srcDir, srcFile, dstFile) =>
           {
-            await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, stream => myStorage.CreateForWriting(dstFile, AccessMode.Public, stream));
+            await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
             dstFiles.Add(dstFile);
-          }).Execute();
+          }).ExecuteAsync();
       myLogger.Info($"[{DateTime.Now:s}] Done with data (warnings: {statistics.Warnings}, errors: {statistics.Errors})");
       if (statistics.HasProblems)
       {
@@ -82,7 +82,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
 
       await WriteTag(dstFiles.Select(Path.GetDirectoryName).Distinct());
-      await myStorage.InvalidateExternalServices();
+      await myStorage.InvalidateExternalServicesAsync();
       return 0;
     }
 
@@ -91,7 +91,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myLogger.Info($"[{DateTime.Now:s}] Writing tag file...");
       var fileId = Guid.NewGuid();
       await using var stream = new MemoryStream();
-      TagUtil.WriteTagScript(new Tag
+      await TagUtil.WriteTagScriptAsync(new Tag
         {
           ToolId = myToolId,
           FileId = fileId.ToString(),
@@ -107,7 +107,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         }, stream);
 
       var tagFile = Path.Combine(TagUtil.TagDirectory, myProduct, myProduct + '-' + myVersion + '-' + fileId.ToString("N") + TagUtil.TagExtension);
-      await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream);
+      await myStorage.CreateForWritingAsync(tagFile, AccessMode.Private, stream);
     }
 
     private static async Task WriteData(

@@ -7,7 +7,7 @@ using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class ListCommand
+  internal sealed class ListCommand : ICommand
   {
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
@@ -35,10 +35,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       mySafetyPeriod = safetyPeriod;
     }
 
-    public async Task<int> Execute()
+    public async Task<int> ExecuteAsync()
     {
       var validator = new Validator(myLogger, myStorage);
-      var (tagItems, _) = await validator.LoadTagItems(
+      var (tagItems, _) = await validator.LoadTagItemsAsync(
         myIncProductWildcards,
         myExcProductWildcards,
         myIncVersionWildcards,

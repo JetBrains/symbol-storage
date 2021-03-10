@@ -38,7 +38,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       mySupportAcl = supportAcl;
     }
 
-    public async Task<bool> Exists(string file)
+    public async Task<bool> ExistsAsync(string file)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
       try
@@ -58,7 +58,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task Delete(string file)
+    public Task DeleteAsync(string file)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
       return myS3Client.DeleteObjectAsync(new DeleteObjectRequest
@@ -68,7 +68,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public async Task Rename(string srcFile, string dstFile, AccessMode mode)
+    public async Task RenameAsync(string srcFile, string dstFile, AccessMode mode)
     {
       var srcKey = srcFile.CheckSystemFile().NormalizeLinux();
       var dstKey = dstFile.CheckSystemFile().NormalizeLinux();
@@ -89,7 +89,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public async Task<long> GetLength(string file)
+    public async Task<long> GetLengthAsync(string file)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
       var response = await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
@@ -102,7 +102,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public bool SupportAccessMode => mySupportAcl;
 
-    public async Task<AccessMode> GetAccessMode(string file)
+    public async Task<AccessMode> GetAccessModeAsync(string file)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
       if (!mySupportAcl)
@@ -133,7 +133,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return hasReadPublic ? AccessMode.Public : AccessMode.Private;
     }
 
-    public async Task SetAccessMode(string file, AccessMode mode)
+    public async Task SetAccessModeAsync(string file, AccessMode mode)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
       if (mySupportAcl)
@@ -145,7 +145,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           });
     }
 
-    public async Task<TResult> OpenForReading<TResult>(string file, Func<Stream, TResult> func)
+    public async Task<TResult> OpenForReadingAsync<TResult>(string file, Func<Stream, Task<TResult>> func)
     {
       if (func == null)
         throw new ArgumentNullException(nameof(func));
@@ -155,17 +155,16 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           BucketName = myBucketName,
           Key = key
         });
-      return func(response.ResponseStream);
+      return await func(response.ResponseStream);
     }
 
-    public Task OpenForReading(string file, Action<Stream> action) => OpenForReading<object>(file,
-      x =>
-        {
-          action(x);
-          return null;
-        });
+    public Task OpenForReadingAsync(string file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
+      {
+        await func(x);
+        return true;
+      });
 
-    public async Task CreateForWriting(string file, AccessMode mode, Stream stream)
+    public async Task CreateForWritingAsync(string file, AccessMode mode, Stream stream)
     {
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
@@ -191,7 +190,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public async Task<bool> IsEmpty()
+    public async Task<bool> IsEmptyAsync()
     {
       var response = await myS3Client.ListObjectsAsync(new ListObjectsRequest
         {
@@ -201,7 +200,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return !response.S3Objects.Where(IsNotDataJsonFile).Any();
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildren(ChildrenMode mode, string prefixDir)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, string prefixDir)
     {
       for (var request = new ListObjectsRequest
         {
@@ -225,7 +224,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task InvalidateExternalServices(IEnumerable<string> fileMasks)
+    public async Task InvalidateExternalServicesAsync(IEnumerable<string> fileMasks)
     {
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {

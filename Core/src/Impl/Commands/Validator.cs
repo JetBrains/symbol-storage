@@ -27,18 +27,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myId = id != null ? " (" + id + ")" : "";
     }
 
-    public async Task<StorageFormat> CreateOrValidateStorageMarkers(StorageFormat newStorageFormat)
+    public async Task<StorageFormat> CreateOrValidateStorageMarkersAsync(StorageFormat newStorageFormat)
     {
-      if (!await myStorage.IsEmpty())
-        return await ValidateStorageMarkers();
-      await CreateStorageMarkers(newStorageFormat);
+      if (!await myStorage.IsEmptyAsync())
+        return await ValidateStorageMarkersAsync();
+      await CreateStorageMarkersAsync(newStorageFormat);
       return newStorageFormat;
     }
 
-    public async Task CreateStorageMarkers(StorageFormat newStorageFormat)
+    public async Task CreateStorageMarkersAsync(StorageFormat newStorageFormat)
     {
       myLogger.Info($"[{DateTime.Now:s}] Creating storage markers{myId}...");
-      if (!await myStorage.IsEmpty())
+      if (!await myStorage.IsEmptyAsync())
         throw new Exception("The empty storage is expected");
       var files = new List<string> {Markers.SingleTier};
       switch (newStorageFormat)
@@ -54,17 +54,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
 
       foreach (var file in files)
-        await myStorage.CreateEmpty(file, AccessMode.Private);
+        await myStorage.CreateEmptyAsync(file, AccessMode.Private);
     }
 
-    public async Task<StorageFormat> ValidateStorageMarkers()
+    public async Task<StorageFormat> ValidateStorageMarkersAsync()
     {
       myLogger.Info($"[{DateTime.Now:s}] Validating storage markers{myId}...");
-      var isFlat = myStorage.Exists(Markers.Flat);
-      var isSingleTier = myStorage.Exists(Markers.SingleTier);
-      var isTwoTier = myStorage.Exists(Markers.TwoTier);
-      var isLowerCase = myStorage.Exists(Markers.LowerCase);
-      var isUpperCase = myStorage.Exists(Markers.UpperCase);
+      var isFlat = myStorage.ExistsAsync(Markers.Flat);
+      var isSingleTier = myStorage.ExistsAsync(Markers.SingleTier);
+      var isTwoTier = myStorage.ExistsAsync(Markers.TwoTier);
+      var isLowerCase = myStorage.ExistsAsync(Markers.LowerCase);
+      var isUpperCase = myStorage.ExistsAsync(Markers.UpperCase);
 
       if (await isFlat)
         throw new ApplicationException("The flat storage format isn't supported");
@@ -84,20 +84,20 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       throw new ApplicationException("The storage wasn't properly configured, both lower and upper case were presented");
     }
 
-    public async Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> LoadTagItems()
+    public async Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> LoadTagItemsAsync()
     {
       myLogger.Info($"[{DateTime.Now:s}] Loading tag files{myId}...");
-      return await myStorage.GetAllTagScripts(x => myLogger.Info($"  Loading {x}")).ToListAsync();
+      return await myStorage.GetAllTagScriptsAsync(x => myLogger.Info($"  Loading {x}")).ToListAsync();
     }
 
-    public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItems(
+    public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItemsAsync(
       [NotNull] IReadOnlyCollection<string> incProductWildcards,
       [NotNull] IReadOnlyCollection<string> excProductWildcards,
       [NotNull] IReadOnlyCollection<string> incVersionWildcards,
       [NotNull] IReadOnlyCollection<string> excVersionWildcards,
       TimeSpan safetyPeriod)
     {
-      var tagItems = await LoadTagItems();
+      var tagItems = await LoadTagItemsAsync();
       var incProductRegexs = incProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
       var excProductRegexs = excProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
       var incVersionRegexs = incVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
@@ -151,7 +151,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       Delete
     }
 
-    public async Task<Tuple<Statistics, long>> Validate(
+    public async Task<Tuple<Statistics, long>> ValidateAsync(
       [NotNull] IEnumerable<KeyValuePair<string, Tag>> items,
       [NotNull] IReadOnlyCollection<string> files,
       StorageFormat storageFormat,
@@ -162,8 +162,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var fix = mode == ValidateMode.Fix || mode == ValidateMode.Delete;
       var statistics = new Statistics();
       ILogger logger = new LoggerWithStatistics(myLogger, statistics);
-      files = await ValidateDataFiles(logger, files, storageFormat, fix);
-      var tree = await CreateDirectoryTree(files);
+      files = await ValidateDataFilesAsync(logger, files, storageFormat, fix);
+      var tree = await CreateDirectoryTreeAsync(files);
       foreach (var item in items)
       {
         var tagFile = item.Key;
@@ -198,7 +198,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           if (fix)
           {
             logger.Fix($"The tag will be deleted {tagFile}");
-            await myStorage.Delete(tagFile);
+            await myStorage.DeleteAsync(tagFile);
             continue;
           }
         }
@@ -244,14 +244,14 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         {
           logger.Info($"The tag file {tagFile} will be overwritten");
           await using var stream = new MemoryStream();
-          TagUtil.WriteTagScript(tag, stream);
-          await myStorage.CreateForWriting(tagFile, AccessMode.Private, stream);
+          await TagUtil.WriteTagScriptAsync(tag, stream);
+          await myStorage.CreateForWritingAsync(tagFile, AccessMode.Private, stream);
         }
       }
 
-      var deleted = await ValidateUnreachable(logger, tree, mode);
+      var deleted = await ValidateUnreachableAsync(logger, tree, mode);
       if (verifyAcl)
-        await ValidateAcl(logger, files, fix);
+        await ValidateAclAsync(logger, files, fix);
       return Tuple.Create(statistics, deleted);
     }
 
@@ -282,7 +282,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return null;
     }
 
-    private async Task ValidateAcl([NotNull] ILogger logger, [NotNull] IEnumerable<string> files, bool fix)
+    private async Task ValidateAclAsync([NotNull] ILogger logger, [NotNull] IEnumerable<string> files, bool fix)
     {
       if (!myStorage.SupportAccessMode)
       {
@@ -294,32 +294,32 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       foreach (var file in files)
         if (TagUtil.IsTagFile(file) || TagUtil.IsStorageCasingFile(file))
         {
-          if (await myStorage.GetAccessMode(file) != AccessMode.Private)
+          if (await myStorage.GetAccessModeAsync(file) != AccessMode.Private)
           {
             logger.Error($"The internal file {file} has invalid access rights");
             if (fix)
             {
               logger.Fix($"Update access rights for the internal file {file}");
-              await myStorage.SetAccessMode(file, AccessMode.Private);
+              await myStorage.SetAccessModeAsync(file, AccessMode.Private);
             }
           }
         }
         else
         {
-          if (await myStorage.GetAccessMode(file) != AccessMode.Public)
+          if (await myStorage.GetAccessModeAsync(file) != AccessMode.Public)
           {
             logger.Error($"The storage file {file} has invalid access rights");
             if (fix)
             {
               logger.Fix($"Update access rights for the storage file {file}");
-              await myStorage.SetAccessMode(file, AccessMode.Public);
+              await myStorage.SetAccessModeAsync(file, AccessMode.Public);
             }
           }
         }
     }
 
     [NotNull]
-    private async Task<IReadOnlyCollection<string>> ValidateDataFiles([NotNull] ILogger logger, [NotNull] IEnumerable<string> files, StorageFormat storageFormat, bool fix)
+    private async Task<IReadOnlyCollection<string>> ValidateDataFilesAsync([NotNull] ILogger logger, [NotNull] IEnumerable<string> files, StorageFormat storageFormat, bool fix)
     {
       logger.Info($"[{DateTime.Now:s}] Validating data files{myId}...");
 
@@ -340,7 +340,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           if (fix)
           {
             logger.Fix($"Rename file {file} to file {fixedFile}");
-            await myStorage.Rename(file, fixedFile, AccessMode.Public);
+            await myStorage.RenameAsync(file, fixedFile, AccessMode.Public);
             res.Add(fixedFile);
           }
           else
@@ -356,7 +356,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     }
 
     [NotNull]
-    private Task<PathTreeNode> CreateDirectoryTree([NotNull] IEnumerable<string> files)
+    private Task<PathTreeNode> CreateDirectoryTreeAsync([NotNull] IEnumerable<string> files)
     {
       var tree = new PathTreeNode();
       foreach (var file in files)
@@ -370,7 +370,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return Task.FromResult(tree);
     }
 
-    private async Task<long> ValidateUnreachable([NotNull] ILogger logger, [NotNull] PathTreeNode tree, ValidateMode mode)
+    private async Task<long> ValidateUnreachableAsync([NotNull] ILogger logger, [NotNull] PathTreeNode tree, ValidateMode mode)
     {
       logger.Info(mode == ValidateMode.Delete
         ? $"[{DateTime.Now:s}] Delete unreachable files{myId}..."
@@ -391,7 +391,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             {
               logger.Info($"  Deleting {file}");
               Interlocked.Increment(ref deleted);
-              await myStorage.Delete(file);
+              await myStorage.DeleteAsync(file);
             }
             else
             {
@@ -399,7 +399,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
               if (mode == ValidateMode.Fix)
               {
                 logger.Fix($"The file {file} will be deleted as unreferenced");
-                await myStorage.Delete(file);
+                await myStorage.DeleteAsync(file);
               }
             }
           }
@@ -408,11 +408,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return deleted;
     }
 
-    public async Task<Tuple<long, IReadOnlyCollection<string>>> GatherDataFiles()
+    public async Task<Tuple<long, IReadOnlyCollection<string>>> GatherDataFilesAsync()
     {
       myLogger.Info($"[{DateTime.Now:s}] Gathering data files{myId}...");
       long totalSize = 0;
-      var files = await myStorage.GetChildren(ChildrenMode.WithSize).Select(x =>
+      var files = await myStorage.GetChildrenAsync(ChildrenMode.WithSize).Select(x =>
         {
           Interlocked.Add(ref totalSize, x.Size);
           return x.Name;

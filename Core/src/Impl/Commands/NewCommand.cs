@@ -6,7 +6,7 @@ using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class NewCommand
+  internal sealed class NewCommand : ICommand
   {
     private readonly ILogger myLogger;
     private readonly StorageFormat myNewStorageFormat;
@@ -22,10 +22,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myNewStorageFormat = newStorageFormat;
     }
 
-    public async Task<int> Execute()
+    public async Task<int> ExecuteAsync()
     {
       var validator = new Validator(myLogger, myStorage);
-      await validator.CreateStorageMarkers(myNewStorageFormat);
+      await validator.CreateStorageMarkersAsync(myNewStorageFormat);
       myLogger.Info($"[{DateTime.Now:s}] Done");
       return 0;
     }

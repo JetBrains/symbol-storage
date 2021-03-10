@@ -62,7 +62,7 @@ namespace JetBrains.SymbolStorage
                 ConsoleLogger.Instance,
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 aclOption.HasValue(),
-                fixOption.HasValue()).Execute());
+                fixOption.HasValue()).ExecuteAsync());
             });
 
           static void FilterOptions(
@@ -97,7 +97,7 @@ namespace JetBrains.SymbolStorage
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
                 excFilterVersionOption.Values,
-                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).Execute());
+                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).ExecuteAsync());
             });
 
           commandLine.Command("delete", x =>
@@ -117,7 +117,7 @@ namespace JetBrains.SymbolStorage
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
                 excFilterVersionOption.Values,
-                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).Execute());
+                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).ExecuteAsync());
             });
         }
 
@@ -136,7 +136,7 @@ namespace JetBrains.SymbolStorage
             x.OnExecute(() => new NewCommand(
               ConsoleLogger.Instance,
               AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).Execute());
+              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).ExecuteAsync());
           });
 
         commandLine.Command("upload", x =>
@@ -149,7 +149,7 @@ namespace JetBrains.SymbolStorage
               ConsoleLogger.Instance,
               AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
               sourceOption.Value(),
-              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).Execute());
+              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).ExecuteAsync());
           });
 
         commandLine.Command("create", x =>
@@ -184,7 +184,7 @@ namespace JetBrains.SymbolStorage
                     compressWPdbOption.HasValue(),
                     keepNonCompressedOption.HasValue(),
                     properties,
-                    sources).Execute();
+                    sources).ExecuteAsync();
                   if (res != 0)
                     return res;
 
@@ -192,7 +192,7 @@ namespace JetBrains.SymbolStorage
                     ConsoleLogger.Instance,
                     storage,
                     tempDir,
-                    newStorageFormat).Execute();
+                    newStorageFormat).ExecuteAsync();
                 }
                 finally
                 {

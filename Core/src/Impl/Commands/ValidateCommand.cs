@@ -6,7 +6,7 @@ using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class ValidateCommand
+  internal sealed class ValidateCommand : ICommand
   {
     private readonly bool myFix;
     private readonly ILogger myLogger;
@@ -25,17 +25,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myFix = fix;
     }
 
-    public async Task<int> Execute()
+    public async Task<int> ExecuteAsync()
     {
       var validator = new Validator(myLogger, myStorage);
-      var storageFormat = await validator.ValidateStorageMarkers();
-      var tagItems = await validator.LoadTagItems();
+      var storageFormat = await validator.ValidateStorageMarkersAsync();
+      var tagItems = await validator.LoadTagItemsAsync();
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);
-      var (totalSize, files) = await validator.GatherDataFiles();
-      var (statistics, _) = await validator.Validate(tagItems, files, storageFormat, myFix ? Validator.ValidateMode.Fix : Validator.ValidateMode.Validate, myVerifyAcl);
+      var (totalSize, files) = await validator.GatherDataFilesAsync();
+      var (statistics, _) = await validator.ValidateAsync(tagItems, files, storageFormat, myFix ? Validator.ValidateMode.Fix : Validator.ValidateMode.Validate, myVerifyAcl);
       if (statistics.Fixes > 0)
-        await myStorage.InvalidateExternalServices();
+        await myStorage.InvalidateExternalServicesAsync();
       myLogger.Info($"[{DateTime.Now:s}] Done (size: {totalSize.ToKibibyte()}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");
       return statistics.HasProblems ? 1 : 0;
     }

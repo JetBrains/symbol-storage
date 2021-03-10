@@ -8,7 +8,7 @@ using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class DeleteCommand
+  internal sealed class DeleteCommand : ICommand
   {
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
@@ -36,15 +36,15 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myExcVersionWildcards = excVersionWildcards ?? throw new ArgumentNullException(nameof(excVersionWildcards));
     }
 
-    public async Task<int> Execute()
+    public async Task<int> ExecuteAsync()
     {
       var validator = new Validator(myLogger, myStorage);
-      var storageFormat = await validator.ValidateStorageMarkers();
+      var storageFormat = await validator.ValidateStorageMarkersAsync();
 
       long deleteTags;
       IReadOnlyCollection<KeyValuePair<string, Tags.Tag>> tagItems;
       {
-        var (incTagItems, excTagItems) = await validator.LoadTagItems(
+        var (incTagItems, excTagItems) = await validator.LoadTagItemsAsync(
           myIncProductWildcards,
           myExcProductWildcards,
           myIncVersionWildcards,
@@ -59,17 +59,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         {
           var file = tagItem.Key;
           myLogger.Info($"  Deleting {file}");
-          await myStorage.Delete(file);
+          await myStorage.DeleteAsync(file);
         }
 
         tagItems = excTagItems;
       }
 
       {
-        var (_, files) = await validator.GatherDataFiles();
-        var (statistics, deleted) = await validator.Validate(tagItems, files, storageFormat, Validator.ValidateMode.Delete);
+        var (_, files) = await validator.GatherDataFilesAsync();
+        var (statistics, deleted) = await validator.ValidateAsync(tagItems, files, storageFormat, Validator.ValidateMode.Delete);
         if (deleted > 0)
-          await myStorage.InvalidateExternalServices();
+          await myStorage.InvalidateExternalServicesAsync();
         myLogger.Info($"[{DateTime.Now:s}] Done (deleted tag files: {deleteTags}, deleted data files: {deleted}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");
         return statistics.HasProblems ? 1 : 0;
       }

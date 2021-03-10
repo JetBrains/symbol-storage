@@ -17,13 +17,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       Directory.CreateDirectory(myRootDir);
     }
 
-    public Task<bool> Exists(string file)
+    public Task<bool> ExistsAsync(string file)
     {
       file.CheckSystemFile();
       return Task.Run(() => File.Exists(Path.Combine(myRootDir, file)));
     }
 
-    public Task Delete(string file)
+    public Task DeleteAsync(string file)
     {
       file.CheckSystemFile();
       return Task.Run(() =>
@@ -33,7 +33,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public Task Rename(string srcFile, string dstFile, AccessMode mode)
+    public Task RenameAsync(string srcFile, string dstFile, AccessMode mode)
     {
       srcFile.CheckSystemFile();
       dstFile.CheckSystemFile();
@@ -78,7 +78,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public Task<long> GetLength(string file)
+    public Task<long> GetLengthAsync(string file)
     {
       file.CheckSystemFile();
       return Task.Run(() => new FileInfo(Path.Combine(myRootDir, file)).Length);
@@ -86,40 +86,34 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public bool SupportAccessMode => false;
 
-    public Task<AccessMode> GetAccessMode(string file)
+    public Task<AccessMode> GetAccessModeAsync(string file)
     {
       file.CheckSystemFile();
       return Task.FromResult(AccessMode.Unknown);
     }
 
-    public Task SetAccessMode(string file, AccessMode mode)
+    public Task SetAccessModeAsync(string file, AccessMode mode)
     {
       file.CheckSystemFile();
       return Task.CompletedTask;
     }
 
-    public Task<TResult> OpenForReading<TResult>(string file, Func<Stream, TResult> func)
+    public async Task<TResult> OpenForReadingAsync<TResult>(string file, Func<Stream, Task<TResult>> func)
     {
       if (func == null)
         throw new ArgumentNullException(nameof(func));
       file.CheckSystemFile();
-      return Task.Run(() =>
-        {
-          using var stream = File.OpenRead(Path.Combine(myRootDir, file));
-          return func(stream);
-        });
+      await using var stream = File.OpenRead(Path.Combine(myRootDir, file));
+      return await func(stream);
     }
 
-    public Task OpenForReading(string file, Action<Stream> action)
-    {
-      return OpenForReading<object>(file, x =>
-        {
-          action(x);
-          return null;
-        });
-    }
+    public Task OpenForReadingAsync(string file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
+      {
+        await func(x);
+        return true;
+      });
 
-    public Task CreateForWriting(string file, AccessMode mode, Stream stream)
+    public Task CreateForWritingAsync(string file, AccessMode mode, Stream stream)
     {
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
@@ -143,12 +137,12 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public Task<bool> IsEmpty()
+    public Task<bool> IsEmptyAsync()
     {
       return Task.Run(() => !Directory.EnumerateFileSystemEntries(myRootDir).Any());
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildren(ChildrenMode mode, [NotNull] string prefixDir)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, [NotNull] string prefixDir)
     {
       var stack = new Stack<string>();
       stack.Push(string.IsNullOrEmpty(prefixDir) ? myRootDir : Path.Combine(myRootDir, prefixDir));
@@ -168,7 +162,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task InvalidateExternalServices(IEnumerable<string> fileMasks)
+    public Task InvalidateExternalServicesAsync(IEnumerable<string> fileMasks)
     {
       if (fileMasks != null)
         foreach (var key in fileMasks)

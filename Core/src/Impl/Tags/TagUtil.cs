@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Tasks;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Commands;
 using JetBrains.SymbolStorage.Impl.Storages;
@@ -26,35 +27,36 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     }
 
     [NotNull]
-    public static Tag ReadTagScript([NotNull] Stream stream)
+    public static async Task<Tag> ReadTagScriptAsync([NotNull] Stream stream)
     {
       using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-      var str = reader.ReadToEnd();
+      var str = await reader.ReadToEndAsync();
       var tag = JsonConvert.DeserializeObject<Tag>(str);
       tag.Directories = tag.Directories?.Select(PathUtil.NormalizeSystem).ToArray();
       return tag;
     }
 
-    public static void WriteTagScript([NotNull] Tag tag, [NotNull] Stream stream)
+    public static async Task WriteTagScriptAsync([NotNull] Tag tag, [NotNull] Stream stream)
     {
       if (tag == null)
         throw new ArgumentNullException(nameof(tag));
       var tmp = tag.Clone();
       tmp.Directories = tag.Directories?.Select(PathUtil.NormalizeLinux).ToArray();
-      using var writer = new StreamWriter(stream, Encoding.UTF8, leaveOpen: true);
+      await using var writer = new StreamWriter(stream, Encoding.UTF8, leaveOpen: true);
       var str = JsonConvert.SerializeObject(tmp, Formatting.Indented);
-      writer.Write(str);
+      await writer.WriteAsync(str);
     }
 
-    public static async IAsyncEnumerable<KeyValuePair<string, Tag>> GetAllTagScripts(
+    public static async IAsyncEnumerable<KeyValuePair<string, Tag>> GetAllTagScriptsAsync(
       [NotNull] this IStorage storage,
       [CanBeNull] Action<string> progress = null)
     {
       if (storage == null) throw new ArgumentNullException(nameof(storage));
-      await foreach (var item in storage.GetChildren(ChildrenMode.Default, TagDirectory))
+      await foreach (var item in storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory))
       {
-        progress?.Invoke(item.Name);
-        yield return await storage.OpenForReading(item.Name, stream => new KeyValuePair<string, Tag>(item.Name, ReadTagScript(stream)));
+        var file = item.Name;
+        progress?.Invoke(file);
+        yield return await storage.OpenForReadingAsync(file, async stream => new KeyValuePair<string, Tag>(file, await ReadTagScriptAsync(stream)));
       }
     }
 
@@ -72,15 +74,8 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     public static bool IsTagFile([NotNull] string file) => file.StartsWith(TagDirectory + Path.DirectorySeparatorChar);
     public static bool IsDataFile([NotNull] string file) => !(IsStorageFormatFile(file) || IsStorageCasingFile(file) || IsTagFile(file));
 
-    public static bool ValidateProduct([CanBeNull] this string product)
-    {
-      return !string.IsNullOrWhiteSpace(product) && product.All(IsValidProduct);
-    }
-
-    public static bool ValidateVersion([CanBeNull] this string version)
-    {
-      return !string.IsNullOrWhiteSpace(version) && version.All(IsValidVersion);
-    }
+    public static bool ValidateProduct([CanBeNull] this string product) => !string.IsNullOrWhiteSpace(product) && product.All(IsValidProduct);
+    public static bool ValidateVersion([CanBeNull] this string version) => !string.IsNullOrWhiteSpace(version) && version.All(IsValidVersion);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsValidProduct(char c) =>

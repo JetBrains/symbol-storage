@@ -12,7 +12,7 @@ using JetBrains.SymbolStorage.Impl.Tags;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class UploadCommand
+  internal sealed class UploadCommand : ICommand
   {
     private readonly ILogger myLogger;
     private readonly string mySource;
@@ -31,20 +31,20 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myNewStorageFormat = newStorageFormat;
     }
 
-    public async Task<int> Execute()
+    public async Task<int> ExecuteAsync()
     {
       var srcStorage = (IStorage) new FileSystemStorage(mySource);
 
       IReadOnlyCollection<string> srcFiles;
       {
         var validator = new Validator(myLogger, srcStorage, "Source");
-        var srcStorageFormat = await validator.ValidateStorageMarkers();
+        var srcStorageFormat = await validator.ValidateStorageMarkersAsync();
 
-        var tagItems = await validator.LoadTagItems();
+        var tagItems = await validator.LoadTagItemsAsync();
         validator.DumpProducts(tagItems);
         validator.DumpProperties(tagItems);
-        var (totalSize, files) = await validator.GatherDataFiles();
-        var (statistics, _) = await validator.Validate(tagItems, files, srcStorageFormat, Validator.ValidateMode.Validate);
+        var (totalSize, files) = await validator.GatherDataFilesAsync();
+        var (statistics, _) = await validator.ValidateAsync(tagItems, files, srcStorageFormat, Validator.ValidateMode.Validate);
         myLogger.Info($"[{DateTime.Now:s}] Done with source validation (size: {totalSize.ToKibibyte()}, files: {files.Count + tagItems.Count}, warnings: {statistics.Warnings}, errors: {statistics.Errors})");
         if (statistics.HasProblems)
         {
@@ -56,7 +56,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
 
       var dstValidator = new Validator(myLogger, myStorage, "Destination");
-      var dstStorageFormat = await dstValidator.CreateOrValidateStorageMarkers(myNewStorageFormat);
+      var dstStorageFormat = await dstValidator.CreateOrValidateStorageMarkersAsync(myNewStorageFormat);
 
       {
         myLogger.Info($"[{DateTime.Now:s}] Checking file compatibility...");
@@ -74,17 +74,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             var dstFile = TagUtil.IsDataFile(srcFile) && srcFile.ValidateAndFixDataPath(dstStorageFormat, out var fixedFile) == PathUtil.ValidateAndFixErrors.CanBeFixed
               ? fixedFile
               : srcFile;
-            if (await myStorage.Exists(dstFile))
+            if (await myStorage.ExistsAsync(dstFile))
             {
               Interlocked.Increment(ref existFiles);
-              var dstLen = await myStorage.GetLength(dstFile);
-              var srcLen = await srcStorage.GetLength(srcFile);
+              var dstLen = await myStorage.GetLengthAsync(dstFile);
+              var srcLen = await srcStorage.GetLengthAsync(srcFile);
               if (srcLen != dstLen)
                 logger.Error($"The file {srcFile} length {srcLen} differs then the destination length {dstLen}");
               else
               {
-                var dstHash = await myStorage.OpenForReading(dstFile, stream => hash.ComputeHash(stream));
-                var srcHash = await srcStorage.OpenForReading(srcFile, stream => hash.ComputeHash(stream));
+                var dstHash = await myStorage.OpenForReadingAsync(dstFile, stream => hash.ComputeHashAsync(stream));
+                var srcHash = await srcStorage.OpenForReadingAsync(srcFile, stream => hash.ComputeHashAsync(stream));
                 if (!srcHash.SequenceEqual(dstHash))
                   logger.Error($"The file {srcFile} hash {srcHash.ToHex()} differs then the destination hash {dstHash.ToHex()}");
               }
@@ -109,12 +109,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           {
             myLogger.Info($"  Uploading {srcFile}");
             await using var memoryStream = new MemoryStream();
-            await srcStorage.OpenForReading(srcFile, stream => stream.CopyTo(memoryStream));
-            await myStorage.CreateForWriting(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream);
+            await srcStorage.OpenForReadingAsync(srcFile, stream => stream.CopyToAsync(memoryStream));
+            await myStorage.CreateForWritingAsync(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream);
             Interlocked.Add(ref totalSize, memoryStream.Length);
           }
 
-          await myStorage.InvalidateExternalServices();
+          await myStorage.InvalidateExternalServicesAsync();
           myLogger.Info($"[{DateTime.Now:s}] Done with uploading (size: {totalSize.ToKibibyte()}, files: {uploadFiles.Count})");
         }
       }

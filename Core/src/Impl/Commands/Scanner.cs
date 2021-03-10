@@ -40,7 +40,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myBaseDir = baseDir;
     }
 
-    public async Task<Statistics> Execute()
+    public async Task<Statistics> ExecuteAsync()
     {
       myLogger.Info($"[{DateTime.Now:s}] Scanning source files...");
       var statistics = new Statistics();
@@ -51,12 +51,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         if (File.Exists(fullSource))
         {
           var sourceDir = string.IsNullOrEmpty(myBaseDir) ? Path.GetDirectoryName(fullSource) ?? "" : myBaseDir;
-          await ScanFile(sourceDir, fullSource, tracer, statistics);
+          await ScanFileAsync(sourceDir, fullSource, tracer);
         }
         else if (Directory.Exists(fullSource))
         {
           foreach (var file in Directory.GetFiles(fullSource, "*", SearchOption.AllDirectories))
-            await ScanFile(fullSource, file, tracer, statistics);
+            await ScanFileAsync(fullSource, file, tracer);
         }
         else
           tracer.Error($"The source path {fullSource} doesn't exist");
@@ -65,11 +65,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return statistics;
     }
 
-    private async Task ScanFile([NotNull] string sourceDir, [NotNull] string sourceFile, [NotNull] ITracer tracer, [NotNull] Statistics statistics)
+    private async Task ScanFileAsync([NotNull] string sourceDir, [NotNull] string sourceFile, [NotNull] ITracer tracer)
     {
       var srcFile = Path.GetRelativePath(sourceDir, sourceFile);
       tracer.Information($"  Scanning {srcFile}...");
-      foreach (var key in GetKeyInfos(tracer, statistics, sourceFile))
+      foreach (var key in GetKeyInfos(tracer, sourceFile))
       {
         var index = key.Item1.Index;
         if (!SymbolStoreKey.IsKeyValid(index))
@@ -97,17 +97,16 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     }
 
     [NotNull]
-    private IEnumerable<Tuple<SymbolStoreKey, KeyType>> GetKeyInfos([NotNull] ITracer tracer, [NotNull] Statistics statistics, [NotNull] string file)
+    private IEnumerable<Tuple<SymbolStoreKey, KeyType>> GetKeyInfos([NotNull] ITracer tracer, [NotNull] string file)
     {
       var symbolStoreFile = new SymbolStoreFile(File.OpenRead(file), file);
       foreach (var (generator, keyType) in GetGenerators(tracer, symbolStoreFile))
       {
-        symbolStoreFile.Stream.Position = 0;
+        symbolStoreFile.Stream.Seek(0, SeekOrigin.Begin);
         if (generator.IsValid())
           return generator.GetKeys(KeyTypeFlags.IdentityKey).Select(x => Tuple.Create(x, keyType));
       }
 
-      statistics.IncrementWarning();
       tracer.Warning($"Invalid file {file} type");
       return Enumerable.Empty<Tuple<SymbolStoreKey, KeyType>>();
     }
