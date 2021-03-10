@@ -13,7 +13,7 @@ namespace JetBrains.SymbolStorage.Impl.Logger
     public long Warnings => myWarnings;
     public long Fixes => myFixes;
 
-    public bool HasProblems => myErrors != 0 || myErrors != 0;
+    public bool HasProblems => myWarnings != 0 || myErrors != 0;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IncrementError() => Interlocked.Increment(ref myErrors);
