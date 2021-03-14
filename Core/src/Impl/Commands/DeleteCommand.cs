@@ -17,11 +17,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IReadOnlyCollection<string> myIncVersionWildcards;
     private readonly IReadOnlyCollection<string> myExcVersionWildcards;
     private readonly TimeSpan mySafetyPeriod;
+    private readonly int myDegreeOfParallelism;
 
     public DeleteCommand(
       [NotNull] ILogger logger,
       [NotNull] IStorage storage,
-      [NotNull] IReadOnlyCollection<string> incProductWildcards, 
+      int degreeOfParallelism,
+      [NotNull] IReadOnlyCollection<string> incProductWildcards,
       [NotNull] IReadOnlyCollection<string> excProductWildcards,
       [NotNull] IReadOnlyCollection<string> incVersionWildcards,
       [NotNull] IReadOnlyCollection<string> excVersionWildcards,
@@ -29,11 +31,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
-      mySafetyPeriod = safetyPeriod;
+      myDegreeOfParallelism = degreeOfParallelism;
       myIncProductWildcards = incProductWildcards ?? throw new ArgumentNullException(nameof(incProductWildcards));
       myExcProductWildcards = excProductWildcards ?? throw new ArgumentNullException(nameof(excProductWildcards));
       myIncVersionWildcards = incVersionWildcards ?? throw new ArgumentNullException(nameof(incVersionWildcards));
       myExcVersionWildcards = excVersionWildcards ?? throw new ArgumentNullException(nameof(excVersionWildcards));
+      mySafetyPeriod = safetyPeriod;
     }
 
     public async Task<int> ExecuteAsync()
@@ -45,6 +48,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       IReadOnlyCollection<KeyValuePair<string, Tags.Tag>> tagItems;
       {
         var (incTagItems, excTagItems) = await validator.LoadTagItemsAsync(
+          myDegreeOfParallelism,
           myIncProductWildcards,
           myExcProductWildcards,
           myIncVersionWildcards,
@@ -55,19 +59,19 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         deleteTags = incTagItems.Count;
 
         myLogger.Info($"[{DateTime.Now:s}] Deleting tag files...");
-        foreach (var tagItem in incTagItems)
-        {
-          var file = tagItem.Key;
-          myLogger.Info($"  Deleting {file}");
-          await myStorage.DeleteAsync(file);
-        }
+        await incTagItems.ParallelFor(myDegreeOfParallelism, async tagItem =>
+          {
+            var file = tagItem.Key;
+            myLogger.Info($"  Deleting {file}");
+            await myStorage.DeleteAsync(file);
+          });
 
         tagItems = excTagItems;
       }
 
       {
         var (_, files) = await validator.GatherDataFilesAsync();
-        var (statistics, deleted) = await validator.ValidateAsync(tagItems, files, storageFormat, Validator.ValidateMode.Delete);
+        var (statistics, deleted) = await validator.ValidateAsync(myDegreeOfParallelism, tagItems, files, storageFormat, Validator.ValidateMode.Delete);
         if (deleted > 0)
           await myStorage.InvalidateExternalServicesAsync();
         myLogger.Info($"[{DateTime.Now:s}] Done (deleted tag files: {deleteTags}, deleted data files: {deleted}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");

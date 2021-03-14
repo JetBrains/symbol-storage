@@ -17,71 +17,69 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       Directory.CreateDirectory(myRootDir);
     }
 
-    public Task<bool> ExistsAsync(string file)
+    public async Task<bool> ExistsAsync(string file)
     {
       file.CheckSystemFile();
-      return Task.Run(() => File.Exists(Path.Combine(myRootDir, file)));
+      await Task.Yield();
+      return File.Exists(Path.Combine(myRootDir, file));
     }
 
-    public Task DeleteAsync(string file)
+    public async Task DeleteAsync(string file)
     {
       file.CheckSystemFile();
-      return Task.Run(() =>
-        {
-          File.Delete(Path.Combine(myRootDir, file));
-          TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(file) ?? "");
-        });
+      await Task.Yield();
+      File.Delete(Path.Combine(myRootDir, file));
+      TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(file) ?? "");
     }
 
-    public Task RenameAsync(string srcFile, string dstFile, AccessMode mode)
+    public async Task RenameAsync(string srcFile, string dstFile, AccessMode mode)
     {
       srcFile.CheckSystemFile();
       dstFile.CheckSystemFile();
-      return Task.Run(() =>
+      await Task.Yield();
+      var tempExt = '.' + Guid.NewGuid().ToString("N") + ".tmp";
+
+      var dstDir = Path.GetDirectoryName(dstFile);
+      var fullDir = myRootDir;
+      foreach (var part in string.IsNullOrEmpty(dstDir) ? Array.Empty<string>() : dstDir.Split(Path.DirectorySeparatorChar))
+      {
+        var newFullDir = Path.Combine(fullDir, part);
+
+        // Note: Should works on casing-insensitive file system!!! 
+        var realDir = Directory.GetDirectories(fullDir, part).FirstOrDefault();
+        if (realDir == null)
+          Directory.CreateDirectory(newFullDir);
+        else if (realDir != newFullDir)
         {
-          var tempExt = '.' + Guid.NewGuid().ToString("N") + ".tmp";
-          
-          var dstDir = Path.GetDirectoryName(dstFile);
-          var fullDir = myRootDir;
-          foreach (var part in string.IsNullOrEmpty(dstDir) ? Array.Empty<string>() : dstDir.Split(Path.DirectorySeparatorChar))
-          {
-            var newFullDir = Path.Combine(fullDir, part);
-            
-            // Note: Should works on casing-insensitive file system!!! 
-            var realDir = Directory.GetDirectories(fullDir, part).FirstOrDefault();
-            if (realDir == null)
-              Directory.CreateDirectory(newFullDir);
-            else if (realDir != newFullDir)
-            {
-              var tempDir = newFullDir + tempExt;
-              Directory.Move(realDir, tempDir);
-              Directory.Move(tempDir, newFullDir);
-            }
-            
-            fullDir = newFullDir;
-          }
+          var tempDir = newFullDir + tempExt;
+          Directory.Move(realDir, tempDir);
+          Directory.Move(tempDir, newFullDir);
+        }
 
-          var fullNewFile = Path.Combine(fullDir, Path.GetFileName(dstFile));
+        fullDir = newFullDir;
+      }
 
-          // Note: Should works on casing-insensitive file system!!!
-          var realFullFile = Directory.GetFiles(fullDir, Path.GetFileName(dstFile)).FirstOrDefault();
-          if (realFullFile == null)
-            File.Move(Path.Combine(myRootDir, srcFile), fullNewFile);
-          else if (realFullFile != fullNewFile)
-          {
-            var tempFile = fullNewFile + tempExt;
-            File.Move(Path.Combine(myRootDir, srcFile), tempFile);
-            File.Move(tempFile, Path.Combine(myRootDir, dstFile));
-          }
+      var fullNewFile = Path.Combine(fullDir, Path.GetFileName(dstFile));
 
-          TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(srcFile) ?? "");
-        });
+      // Note: Should works on casing-insensitive file system!!!
+      var realFullFile = Directory.GetFiles(fullDir, Path.GetFileName(dstFile)).FirstOrDefault();
+      if (realFullFile == null)
+        File.Move(Path.Combine(myRootDir, srcFile), fullNewFile);
+      else if (realFullFile != fullNewFile)
+      {
+        var tempFile = fullNewFile + tempExt;
+        File.Move(Path.Combine(myRootDir, srcFile), tempFile);
+        File.Move(tempFile, Path.Combine(myRootDir, dstFile));
+      }
+
+      TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(srcFile) ?? "");
     }
 
-    public Task<long> GetLengthAsync(string file)
+    public async Task<long> GetLengthAsync(string file)
     {
       file.CheckSystemFile();
-      return Task.Run(() => new FileInfo(Path.Combine(myRootDir, file)).Length);
+      await Task.Yield();
+      return new FileInfo(Path.Combine(myRootDir, file)).Length;
     }
 
     public bool SupportAccessMode => false;
@@ -103,6 +101,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       if (func == null)
         throw new ArgumentNullException(nameof(func));
       file.CheckSystemFile();
+      await Task.Yield();
       await using var stream = File.OpenRead(Path.Combine(myRootDir, file));
       return await func(stream);
     }
@@ -113,51 +112,53 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         return true;
       });
 
-    public Task CreateForWritingAsync(string file, AccessMode mode, Stream stream)
+    public async Task CreateForWritingAsync(string file, AccessMode mode, Stream stream)
     {
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
       if (!stream.CanSeek)
         throw new ArgumentException("The stream should support the seek operation", nameof(stream));
       file.CheckSystemFile();
-      return Task.Run(() =>
-        {
-          stream.Seek(0, SeekOrigin.Begin);
-          var length = stream.Length;
-          var fullFile = Path.Combine(myRootDir, file);
-          Directory.CreateDirectory(Path.GetDirectoryName(fullFile) ?? "");
-          using var outStream = File.Create(fullFile);
-          var buffer = new byte[Math.Min(length, 85000)];
-          int read;
-          while (length > 0 && (read = stream.Read(buffer, 0, checked((int) Math.Min(length, buffer.Length)))) > 0)
-          {
-            outStream.Write(buffer, 0, read);
-            length -= read;
-          }
-        });
+      await Task.Yield();
+      stream.Seek(0, SeekOrigin.Begin);
+      var length = stream.Length;
+      var fullFile = Path.Combine(myRootDir, file);
+      Directory.CreateDirectory(Path.GetDirectoryName(fullFile) ?? "");
+      await using var outStream = File.Create(fullFile);
+      var buffer = new byte[Math.Min(length, 85000)];
+      int read;
+      while (length > 0 && (read = await stream.ReadAsync(buffer, 0, checked((int) Math.Min(length, buffer.Length)))) > 0)
+      {
+        outStream.Write(buffer, 0, read);
+        length -= read;
+      }
     }
 
-    public Task<bool> IsEmptyAsync()
+    public async Task<bool> IsEmptyAsync()
     {
-      return Task.Run(() => !Directory.EnumerateFileSystemEntries(myRootDir).Any());
+      await Task.Yield();
+      return !Directory.EnumerateFileSystemEntries(myRootDir).Any();
     }
 
     public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, [NotNull] string prefixDir)
     {
+      await Task.Yield();
       var stack = new Stack<string>();
       stack.Push(string.IsNullOrEmpty(prefixDir) ? myRootDir : Path.Combine(myRootDir, prefixDir));
       while (stack.Count > 0)
       {
         var dir = stack.Pop();
-        foreach (var subDir in Directory.EnumerateDirectories(dir))
-          stack.Push(subDir);
-        foreach (var file in Directory.EnumerateFiles(dir))
+        foreach (var path in Directory.EnumerateFileSystemEntries(dir))
         {
-          yield return new ChildrenItem
-            {
-              Name = Path.GetRelativePath(myRootDir, file),
-              Size = (mode & ChildrenMode.WithSize) != 0 ? new FileInfo(file).Length : -1
-            };
+          var file = new FileInfo(path);
+          if ((file.Attributes & FileAttributes.Directory) == 0)
+            yield return new ChildrenItem
+              {
+                Name = Path.GetRelativePath(myRootDir, path),
+                Size = (mode & ChildrenMode.WithSize) != 0 ? file.Length : -1
+              };
+          else
+            stack.Push(path);
         }
       }
     }

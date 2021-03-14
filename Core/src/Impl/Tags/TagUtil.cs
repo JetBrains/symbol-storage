@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Commands;
@@ -47,17 +48,19 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       await writer.WriteAsync(str);
     }
 
-    public static async IAsyncEnumerable<KeyValuePair<string, Tag>> GetAllTagScriptsAsync(
+    public static async Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> GetAllTagScriptsAsync(
       [NotNull] this IStorage storage,
+      int degreeOfParallelism,
       [CanBeNull] Action<string> progress = null)
     {
-      if (storage == null) throw new ArgumentNullException(nameof(storage));
-      await foreach (var item in storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory))
-      {
-        var file = item.Name;
-        progress?.Invoke(file);
-        yield return await storage.OpenForReadingAsync(file, async stream => new KeyValuePair<string, Tag>(file, await ReadTagScriptAsync(stream)));
-      }
+      if (storage == null)
+        throw new ArgumentNullException(nameof(storage));
+      return await storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory).ParallelFor(degreeOfParallelism, async item =>
+        {
+          var file = item.Name;
+          progress?.Invoke(file);
+          return new KeyValuePair<string, Tag>(file, await storage.OpenForReadingAsync(file, ReadTagScriptAsync));
+        });
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

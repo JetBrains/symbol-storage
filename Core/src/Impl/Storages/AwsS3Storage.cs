@@ -28,7 +28,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       [NotNull] string bucketName,
       [NotNull] string region,
       [CanBeNull] string cloudFrontDistributionId = null,
-      bool supportAcl= true)
+      bool supportAcl = true)
     {
       var regionEndpoint = RegionEndpoint.GetBySystemName(region);
       myS3Client = new AmazonS3Client(accessKey, secretKey, regionEndpoint);
@@ -58,10 +58,10 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task DeleteAsync(string file)
+    public async Task DeleteAsync(string file)
     {
       var key = file.CheckSystemFile().NormalizeLinux();
-      return myS3Client.DeleteObjectAsync(new DeleteObjectRequest
+      await myS3Client.DeleteObjectAsync(new DeleteObjectRequest
         {
           BucketName = myBucketName,
           Key = key
@@ -171,6 +171,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       if (!stream.CanSeek)
         throw new ArgumentException("The stream should support the seek operation", nameof(stream));
       var key = file.CheckSystemFile().NormalizeLinux();
+      await Task.Yield();
       stream.Seek(0, SeekOrigin.Begin);
       string md5Hash;
       using (var md5Alg = new MD5Managed())
@@ -210,13 +211,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       {
         var response = await myS3Client.ListObjectsAsync(request);
         foreach (var s3Object in response.S3Objects.Where(IsUserFile))
-        {
           yield return new ChildrenItem
             {
               Name = s3Object.Key.NormalizeSystem(),
               Size = (mode & ChildrenMode.WithSize) != 0 ? s3Object.Size : -1
             };
-        }
 
         request.Marker = response.NextMarker;
         if (!response.IsTruncated)

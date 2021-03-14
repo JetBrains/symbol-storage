@@ -62,16 +62,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     }
 
     [NotNull]
-    public PathTreeNode Insert(string part)
+    public PathTreeNode GetOrInsert(string part)
     {
-      var child = new PathTreeNode(this, part);
       lock (myLock)
       {
-        myChildren ??= new Dictionary<string, PathTreeNode>();
+        if (myChildren == null)
+          myChildren = new Dictionary<string, PathTreeNode>();
+        else if (myChildren.TryGetValue(part, out var value))
+          return value;
+        var child = new PathTreeNode(this, part);
         myChildren.Add(part, child);
+        return child;
       }
-
-      return child;
     }
 
     [CanBeNull]

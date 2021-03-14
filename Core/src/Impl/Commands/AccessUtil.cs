@@ -16,8 +16,20 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public const string UpperStorageFormat = "upper";
 
     public static readonly string DefaultAwsS3RegionEndpoint = RegionEndpoint.EUWest1.SystemName;
+    public static readonly int DefaultDegreeOfParallelism = Environment.ProcessorCount;
 
-    public static readonly TimeSpan DefaultSafetyPeriod = TimeSpan.FromDays(90);
+    public static readonly TimeSpan DefaultSafetyPeriod = TimeSpan.FromDays(60);
+    
+    public static int GetDegreeOfParallelism(string degreeOfParallelism)
+    {
+      var res = degreeOfParallelism != null
+        ? int.Parse(degreeOfParallelism)
+        : DefaultDegreeOfParallelism;
+      if (res < 1)
+        throw new Exception("The execute task count can't be less then 1");
+      Console.WriteLine("Execute {0} tasks in parallel", res);
+      return res;
+    }
 
     [NotNull]
     public static IStorage GetStorage([CanBeNull] string dir, [CanBeNull] string awsS3BucketName, [CanBeNull] string awsS3RegionEndpoint)

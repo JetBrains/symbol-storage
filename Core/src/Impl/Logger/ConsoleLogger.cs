@@ -4,20 +4,31 @@ namespace JetBrains.SymbolStorage.Impl.Logger
 {
   internal sealed class ConsoleLogger : ILogger
   {
-    public static readonly ILogger Instance = new ConsoleLogger();
-    private readonly object myLock = new();
+    private readonly bool myVerbose;
+    private static readonly object ourLock = new();
 
-    private ConsoleLogger() => Console.ResetColor();
+    public ConsoleLogger(bool verbose)
+    {
+      myVerbose = verbose;
+      Console.ResetColor();
+    }
+
+    void ILogger.Verbose(string str)
+    {
+      if (myVerbose)
+        lock (ourLock)
+          Console.WriteLine(str);
+    }
 
     void ILogger.Info(string str)
     {
-      lock (myLock)
+      lock (ourLock)
         Console.WriteLine(str);
     }
 
     void ILogger.Fix(string str)
     {
-      lock (myLock)
+      lock (ourLock)
       {
         Console.ForegroundColor = ConsoleColor.Green;
         Console.Write("FIX: ");
@@ -28,7 +39,7 @@ namespace JetBrains.SymbolStorage.Impl.Logger
 
     void ILogger.Warning(string str)
     {
-      lock (myLock)
+      lock (ourLock)
       {
         Console.ForegroundColor = ConsoleColor.Yellow;
         Console.Write("WARNING: ");
@@ -39,11 +50,22 @@ namespace JetBrains.SymbolStorage.Impl.Logger
 
     void ILogger.Error(string str)
     {
-      lock (myLock)
+      lock (ourLock)
       {
         Console.ForegroundColor = ConsoleColor.Red;
         Console.Error.Write("ERROR: ");
         Console.Error.WriteLine(str);
+        Console.ResetColor();
+      }
+    }
+
+    public static void Exception(Exception e)
+    {
+      lock (ourLock)
+      {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.Error.Write("ERROR: ");
+        Console.Error.WriteLine(e);
         Console.ResetColor();
       }
     }

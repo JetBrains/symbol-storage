@@ -26,10 +26,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IStorage myStorage;
     private readonly string myToolId;
     private readonly string myVersion;
+    private readonly int myDegreeOfParallelism;
 
     public CreateCommand(
       [NotNull] ILogger logger,
       [NotNull] IStorage storage,
+      int degreeOfParallelism,
       StorageFormat expectedStorageFormat,
       [NotNull] string toolId,
       [NotNull] string product,
@@ -42,6 +44,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
+      myDegreeOfParallelism = degreeOfParallelism;
       myExpectedStorageFormat = expectedStorageFormat;
       myToolId = toolId ?? throw new ArgumentNullException(nameof(toolId));
       myProduct = product ?? throw new ArgumentNullException(nameof(product));
@@ -63,7 +66,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       await new Validator(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
 
       var dstFiles = new ConcurrentBag<string>();
-      var statistics = await new Scanner(myLogger, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
+      var statistics = await new Scanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
         async (srcDir, srcFile, dstFile) =>
           {
             await WriteData(Path.Combine(srcDir, srcFile), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));

@@ -24,6 +24,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       {
       }
 
+      void ITracer.Verbose(string message) => myLogger.Verbose(message);
+      void ITracer.Verbose(string format, params object[] arguments) => myLogger.Verbose(string.Format(format, arguments));
+
       void ITracer.Information(string message) => myLogger.Info(message);
       void ITracer.Information(string format, params object[] arguments) => myLogger.Info(string.Format(format, arguments));
 
@@ -32,14 +35,6 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
       void ITracer.Error(string message) => myLogger.Error(message);
       void ITracer.Error(string format, params object[] arguments) => myLogger.Error(string.Format(format, arguments));
-
-      void ITracer.Verbose(string message)
-      {
-      }
-
-      void ITracer.Verbose(string format, params object[] arguments)
-      {
-      }
     }
   }
 }

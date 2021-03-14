@@ -14,6 +14,7 @@ namespace JetBrains.SymbolStorage.Impl.Logger
       myStatistics = statistics ?? throw new ArgumentNullException(nameof(statistics));
     }
 
+    void ILogger.Verbose(string str) => myLogger.Verbose(str);
     void ILogger.Info(string str) => myLogger.Info(str);
 
     void ILogger.Fix(string str)

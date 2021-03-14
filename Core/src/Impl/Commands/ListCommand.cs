@@ -11,6 +11,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
   {
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
+    private readonly int myDegreeOfParallelism;
     private readonly IReadOnlyCollection<string> myIncProductWildcards;
     private readonly IReadOnlyCollection<string> myExcProductWildcards;
     private readonly IReadOnlyCollection<string> myIncVersionWildcards;
@@ -20,6 +21,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public ListCommand(
       [NotNull] ILogger logger,
       [NotNull] IStorage storage,
+      int degreeOfParallelism,
       [NotNull] IReadOnlyCollection<string> incProductWildcards,
       [NotNull] IReadOnlyCollection<string> excProductWildcards,
       [NotNull] IReadOnlyCollection<string> incVersionWildcards,
@@ -28,6 +30,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
+      myDegreeOfParallelism = degreeOfParallelism;
       myIncProductWildcards = incProductWildcards ?? throw new ArgumentNullException(nameof(incProductWildcards));
       myExcProductWildcards = excProductWildcards ?? throw new ArgumentNullException(nameof(excProductWildcards));
       myIncVersionWildcards = incVersionWildcards ?? throw new ArgumentNullException(nameof(incVersionWildcards));
@@ -39,6 +42,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       var validator = new Validator(myLogger, myStorage);
       var (tagItems, _) = await validator.LoadTagItemsAsync(
+        myDegreeOfParallelism,
         myIncProductWildcards,
         myExcProductWildcards,
         myIncVersionWildcards,

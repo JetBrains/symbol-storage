@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -84,20 +86,21 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       throw new ApplicationException("The storage wasn't properly configured, both lower and upper case were presented");
     }
 
-    public async Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> LoadTagItemsAsync()
+    public Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> LoadTagItemsAsync(int degreeOfParallelism)
     {
       myLogger.Info($"[{DateTime.Now:s}] Loading tag files{myId}...");
-      return await myStorage.GetAllTagScriptsAsync(x => myLogger.Info($"  Loading {x}")).ToListAsync();
+      return myStorage.GetAllTagScriptsAsync(degreeOfParallelism, x => myLogger.Verbose($"  Loading {x}"));
     }
 
     public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItemsAsync(
+      int degreeOfParallelism,
       [NotNull] IReadOnlyCollection<string> incProductWildcards,
       [NotNull] IReadOnlyCollection<string> excProductWildcards,
       [NotNull] IReadOnlyCollection<string> incVersionWildcards,
       [NotNull] IReadOnlyCollection<string> excVersionWildcards,
       TimeSpan safetyPeriod)
     {
-      var tagItems = await LoadTagItemsAsync();
+      var tagItems = await LoadTagItemsAsync(degreeOfParallelism);
       var incProductRegexs = incProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
       var excProductRegexs = excProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
       var incVersionRegexs = incVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
@@ -113,7 +116,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           inc.Add(tagItem);
         else
           exc.Add(tagItem);
-      return Tuple.Create((IReadOnlyCollection<KeyValuePair<string, Tag>>) inc, (IReadOnlyCollection<KeyValuePair<string, Tag>>) exc);
+      return new(inc, exc);
     }
 
     [NotNull]
@@ -152,6 +155,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     }
 
     public async Task<Tuple<Statistics, long>> ValidateAsync(
+      int degreeOfParallelism,
       [NotNull] IEnumerable<KeyValuePair<string, Tag>> items,
       [NotNull] IReadOnlyCollection<string> files,
       StorageFormat storageFormat,
@@ -162,96 +166,96 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var fix = mode == ValidateMode.Fix || mode == ValidateMode.Delete;
       var statistics = new Statistics();
       ILogger logger = new LoggerWithStatistics(myLogger, statistics);
-      files = await ValidateDataFilesAsync(logger, files, storageFormat, fix);
-      var tree = await CreateDirectoryTreeAsync(files);
-      foreach (var item in items)
-      {
-        var tagFile = item.Key;
-        var tag = item.Value;
-        logger.Info($"  Validating {tagFile}");
-        var isDirty = false;
-
-        if (!tag.Product.ValidateProduct())
-          logger.Error($"Invalid product {tag.Product} in file {tagFile}");
-
-        if (!tag.Version.ValidateVersion())
-          logger.Error($"Invalid version {tag.Version} in file {tagFile}");
-
-        if (tag.CreationUtcTime == DateTime.MinValue)
+      files = await ValidateDataFilesAsync(logger, degreeOfParallelism, files, storageFormat, fix);
+      var tree = await CreateDirectoryTreeAsync(degreeOfParallelism, files);
+      await items.ParallelFor(degreeOfParallelism, async item =>
         {
-          logger.Error($"The empty creation time in {tagFile}");
-          if (fix)
+          var tagFile = item.Key;
+          var tag = item.Value;
+          logger.Verbose($"  Validating {tagFile}");
+          var isDirty = false;
+
+          if (!tag.Product.ValidateProduct())
+            logger.Error($"Invalid product {tag.Product} in file {tagFile}");
+
+          if (!tag.Version.ValidateVersion())
+            logger.Error($"Invalid version {tag.Version} in file {tagFile}");
+
+          if (tag.CreationUtcTime == DateTime.MinValue)
           {
-            var newCreationUtcTime = TryFixCreationTime(tag);
-            if (newCreationUtcTime != null)
+            logger.Error($"The empty creation time in {tagFile}");
+            if (fix)
             {
-              logger.Fix($"The creation time will be assigned to tag {tagFile}");
-              isDirty = true;
-              tag.CreationUtcTime = newCreationUtcTime.Value;
+              var newCreationUtcTime = TryFixCreationTime(tag);
+              if (newCreationUtcTime != null)
+              {
+                logger.Fix($"The creation time will be assigned to tag {tagFile}");
+                isDirty = true;
+                tag.CreationUtcTime = newCreationUtcTime.Value;
+              }
             }
           }
-        }
 
-        if (tag.Directories == null || tag.Directories.Length == 0)
-        {
-          logger.Error($"The empty directory list in {tagFile}");
-          if (fix)
+          if (tag.Directories == null || tag.Directories.Length == 0)
           {
-            logger.Fix($"The tag will be deleted {tagFile}");
-            await myStorage.DeleteAsync(tagFile);
-            continue;
-          }
-        }
-        else
-        {
-          for (var index = 0; index < tag.Directories.Length; index++)
-          {
-            var dir = tag.Directories[index];
-
-            switch (dir.ValidateAndFixDataPath(StorageFormat.Normal, out var fixedDir))
+            logger.Error($"The empty directory list in {tagFile}");
+            if (fix)
             {
-            case PathUtil.ValidateAndFixErrors.Ok:
-              break;
-            case PathUtil.ValidateAndFixErrors.Error:
-              logger.Error($"The tag directory {dir} from {tagFile} has invalid format");
-              break;
-            case PathUtil.ValidateAndFixErrors.CanBeFixed:
-              logger.Error($"The tag directory {dir} from {tagFile} has invalid format");
-              if (fix)
+              logger.Fix($"The tag will be deleted {tagFile}");
+              await myStorage.DeleteAsync(tagFile);
+              return;
+            }
+          }
+          else
+          {
+            for (var index = 0; index < tag.Directories.Length; index++)
+            {
+              var dir = tag.Directories[index];
+
+              switch (dir.ValidateAndFixDataPath(StorageFormat.Normal, out var fixedDir))
               {
-                isDirty = true;
-                tag.Directories[index] = fixedDir;
+              case PathUtil.ValidateAndFixErrors.Ok:
+                break;
+              case PathUtil.ValidateAndFixErrors.Error:
+                logger.Error($"The tag directory {dir} from {tagFile} has invalid format");
+                break;
+              case PathUtil.ValidateAndFixErrors.CanBeFixed:
+                logger.Error($"The tag directory {dir} from {tagFile} has invalid format");
+                if (fix)
+                {
+                  isDirty = true;
+                  tag.Directories[index] = fixedDir;
+                }
+
+                break;
+              default:
+                throw new ArgumentOutOfRangeException();
               }
 
-              break;
-            default:
-              throw new ArgumentOutOfRangeException();
+              var dstDir = dir.ValidateAndFixDataPath(storageFormat, out fixedDir) == PathUtil.ValidateAndFixErrors.CanBeFixed ? fixedDir : dir;
+              var node = tree;
+              foreach (var part in dstDir.GetPathComponents())
+                node = node?.Lookup(part);
+
+              if (node == null)
+                logger.Error($"The directory {dir} from {tagFile} id wasn't found");
+              else
+                node.IncrementReferences();
             }
-
-            var dstDir = dir.ValidateAndFixDataPath(storageFormat, out fixedDir) == PathUtil.ValidateAndFixErrors.CanBeFixed ? fixedDir : dir;
-            var node = tree;
-            foreach (var part in dstDir.GetPathComponents())
-              node = node?.Lookup(part);
-
-            if (node == null)
-              logger.Error($"The directory {dir} from {tagFile} id wasn't found");
-            else
-              node.IncrementReferences();
           }
-        }
 
-        if (isDirty)
-        {
-          logger.Info($"The tag file {tagFile} will be overwritten");
-          await using var stream = new MemoryStream();
-          await TagUtil.WriteTagScriptAsync(tag, stream);
-          await myStorage.CreateForWritingAsync(tagFile, AccessMode.Private, stream);
-        }
-      }
+          if (isDirty)
+          {
+            logger.Info($"The tag file {tagFile} will be overwritten");
+            await using var stream = new MemoryStream();
+            await TagUtil.WriteTagScriptAsync(tag, stream);
+            await myStorage.CreateForWritingAsync(tagFile, AccessMode.Private, stream);
+          }
+        });
 
       var deleted = await ValidateUnreachableAsync(logger, tree, mode);
       if (verifyAcl)
-        await ValidateAclAsync(logger, files, fix);
+        await ValidateAclAsync(logger, degreeOfParallelism, files, fix);
       return Tuple.Create(statistics, deleted);
     }
 
@@ -282,7 +286,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return null;
     }
 
-    private async Task ValidateAclAsync([NotNull] ILogger logger, [NotNull] IEnumerable<string> files, bool fix)
+    private async Task ValidateAclAsync([NotNull] ILogger logger, int degreeOfParallelism, [NotNull] IEnumerable<string> files, bool fix)
     {
       if (!myStorage.SupportAccessMode)
       {
@@ -291,83 +295,92 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
 
       logger.Info($"[{DateTime.Now:s}] Validating access rights{myId}...");
-      foreach (var file in files)
-        if (TagUtil.IsTagFile(file) || TagUtil.IsStorageCasingFile(file))
+      await files.ParallelFor(degreeOfParallelism, async file =>
         {
-          if (await myStorage.GetAccessModeAsync(file) != AccessMode.Private)
+          logger.Verbose($"  Validating {file}");
+          if (TagUtil.IsTagFile(file) || TagUtil.IsStorageCasingFile(file))
           {
-            logger.Error($"The internal file {file} has invalid access rights");
-            if (fix)
+            if (await myStorage.GetAccessModeAsync(file) != AccessMode.Private)
             {
-              logger.Fix($"Update access rights for the internal file {file}");
-              await myStorage.SetAccessModeAsync(file, AccessMode.Private);
+              logger.Error($"The internal file {file} has invalid access rights");
+              if (fix)
+              {
+                logger.Fix($"Update access rights for the internal file {file}");
+                await myStorage.SetAccessModeAsync(file, AccessMode.Private);
+              }
             }
           }
-        }
-        else
-        {
-          if (await myStorage.GetAccessModeAsync(file) != AccessMode.Public)
+          else
           {
-            logger.Error($"The storage file {file} has invalid access rights");
-            if (fix)
+            if (await myStorage.GetAccessModeAsync(file) != AccessMode.Public)
             {
-              logger.Fix($"Update access rights for the storage file {file}");
-              await myStorage.SetAccessModeAsync(file, AccessMode.Public);
+              logger.Error($"The storage file {file} has invalid access rights");
+              if (fix)
+              {
+                logger.Fix($"Update access rights for the storage file {file}");
+                await myStorage.SetAccessModeAsync(file, AccessMode.Public);
+              }
             }
           }
-        }
+        });
     }
 
     [NotNull]
-    private async Task<IReadOnlyCollection<string>> ValidateDataFilesAsync([NotNull] ILogger logger, [NotNull] IEnumerable<string> files, StorageFormat storageFormat, bool fix)
+    private async Task<IReadOnlyCollection<string>> ValidateDataFilesAsync(
+      [NotNull] ILogger logger,
+      int degreeOfParallelism,
+      [NotNull] IEnumerable<string> files,
+      StorageFormat storageFormat,
+      bool fix)
     {
       logger.Info($"[{DateTime.Now:s}] Validating data files{myId}...");
 
-      var res = new List<string>();
-      foreach (var file in files)
-      {
-        logger.Info($"  Validating {file}");
-        switch (file.ValidateAndFixDataPath(storageFormat, out var fixedFile))
+      var res = new ConcurrentBag<string>();
+      await files.ParallelFor(degreeOfParallelism, async file =>
         {
-        case PathUtil.ValidateAndFixErrors.Ok:
-          res.Add(file);
-          break;
-        case PathUtil.ValidateAndFixErrors.Error:
-          logger.Error($"Found unexpected file {file} location");
-          goto case PathUtil.ValidateAndFixErrors.Ok;
-        case PathUtil.ValidateAndFixErrors.CanBeFixed:
-          logger.Error($"Found unexpected file {file} location");
-          if (fix)
+          logger.Verbose($"  Validating {file}");
+          switch (file.ValidateAndFixDataPath(storageFormat, out var fixedFile))
           {
-            logger.Fix($"Rename file {file} to file {fixedFile}");
-            await myStorage.RenameAsync(file, fixedFile, AccessMode.Public);
-            res.Add(fixedFile);
-          }
-          else
+          case PathUtil.ValidateAndFixErrors.Ok:
             res.Add(file);
+            break;
+          case PathUtil.ValidateAndFixErrors.Error:
+            logger.Error($"Found unexpected file {file} location");
+            goto case PathUtil.ValidateAndFixErrors.Ok;
+          case PathUtil.ValidateAndFixErrors.CanBeFixed:
+            logger.Error($"Found unexpected file {file} location");
+            if (fix)
+            {
+              logger.Fix($"Rename file {file} to file {fixedFile}");
+              await myStorage.RenameAsync(file, fixedFile, AccessMode.Public);
+              res.Add(fixedFile);
+            }
+            else
+              res.Add(file);
 
-          break;
-        default:
-          throw new ArgumentOutOfRangeException();
-        }
-      }
+            break;
+          default:
+            throw new ArgumentOutOfRangeException();
+          }
+        });
 
       return res;
     }
 
     [NotNull]
-    private Task<PathTreeNode> CreateDirectoryTreeAsync([NotNull] IEnumerable<string> files)
+    private static async Task<PathTreeNode> CreateDirectoryTreeAsync(int degreeOfParallelism, [NotNull] IEnumerable<string> files)
     {
       var tree = new PathTreeNode();
-      foreach (var file in files)
-      {
-        var node = tree;
-        foreach (var part in Path.GetDirectoryName(file).GetPathComponents())
-          node = node.Lookup(part) ?? node.Insert(part);
-        node.AddFile(file);
-      }
+      await files.ParallelFor(degreeOfParallelism, async file =>
+        {
+          await Task.Yield();
+          var node = tree;
+          foreach (var part in Path.GetDirectoryName(file).GetPathComponents())
+            node = node.GetOrInsert(part);
+          node.AddFile(file);
+        });
 
-      return Task.FromResult(tree);
+      return tree;
     }
 
     private async Task<long> ValidateUnreachableAsync([NotNull] ILogger logger, [NotNull] PathTreeNode tree, ValidateMode mode)
