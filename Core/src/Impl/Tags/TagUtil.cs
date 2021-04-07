@@ -19,6 +19,16 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     public const string TagExtension = ".tag";
 
     [NotNull]
+    public static string MakeTagFile([NotNull] string product, [NotNull] string version, Guid fileId)
+    {
+      if (product == null)
+        throw new ArgumentNullException(nameof(product));
+      if (version == null)
+        throw new ArgumentNullException(nameof(version));
+      return Path.Combine(TagDirectory, product, product + '-' + version + '-' + fileId.ToString("N") + TagExtension);
+    }
+
+    [NotNull]
     public static Tag Clone([NotNull] this Tag tag)
     {
       var newTag = new Tag();
@@ -77,23 +87,53 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     public static bool IsTagFile([NotNull] string file) => file.StartsWith(TagDirectory + Path.DirectorySeparatorChar);
     public static bool IsDataFile([NotNull] string file) => !(IsStorageFormatFile(file) || IsStorageCasingFile(file) || IsTagFile(file));
 
-    public static bool ValidateProduct([CanBeNull] this string product) => !string.IsNullOrWhiteSpace(product) && product.All(IsValidProduct);
-    public static bool ValidateVersion([CanBeNull] this string version) => !string.IsNullOrWhiteSpace(version) && version.All(IsValidVersion);
+    public static bool ValidateProduct([CanBeNull] string product) => !string.IsNullOrEmpty(product) && product.All(IsValidProduct);
+    public static bool ValidateVersion([CanBeNull] string version) => !string.IsNullOrEmpty(version) && version.All(IsValidVersion);
+
+    public static bool ValidateProductWildcard([CanBeNull] string productWildcard) => !string.IsNullOrEmpty(productWildcard) && productWildcard.All(c => IsWildcard(c) || IsValidProduct(c));
+    public static bool ValidateVersionWildcard([CanBeNull] string versionWildcard) => !string.IsNullOrEmpty(versionWildcard) && versionWildcard.All(c => IsWildcard(c) || IsValidVersion(c));
+
+    public static void CheckProductAndVersion([CanBeNull] string product, [CanBeNull] string version)
+    {
+      if (!ValidateProduct(product))
+        throw new ApplicationException($"Invalid product name {product}");
+      if (!ValidateVersion(version))
+        throw new ApplicationException($"Invalid version {version}");
+    }
+
+    public static void CheckProductAndVersionWildcards(
+      [NotNull] IEnumerable<string> incProductWildcards,
+      [NotNull] IEnumerable<string> excProductWildcards,
+      [NotNull] IEnumerable<string> incVersionWildcards,
+      [NotNull] IEnumerable<string> excVersionWildcards)
+    {
+      foreach (var productWildcard in incProductWildcards.Concat(excProductWildcards))
+        if (!ValidateProductWildcard(productWildcard))
+          throw new ApplicationException($"Invalid product name wildcard {productWildcard}");
+      foreach (var versionWildcard in incVersionWildcards.Concat(excVersionWildcards))
+        if (!ValidateVersionWildcard(versionWildcard))
+          throw new ApplicationException($"Invalid version wildcard {versionWildcard}");
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsWildcard(char c) =>
+      c == '*' ||
+      c == '?';
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsValidProduct(char c) =>
-      char.IsLetterOrDigit(c)
-      || c == '_'
-      || c == '-'
-      || c == '+';
+      char.IsLetterOrDigit(c) ||
+      c == '_' ||
+      c == '-' ||
+      c == '+';
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsValidVersion(char c) =>
-      char.IsLetterOrDigit(c)
-      || c == '_'
-      || c == '-'
-      || c == '+'
-      || c == '.';
+      char.IsLetterOrDigit(c) ||
+      c == '_' ||
+      c == '-' ||
+      c == '+' ||
+      c == '.';
 
     [NotNull]
     public static IReadOnlyCollection<KeyValuePair<string, string>> ParseProperties([NotNull] this IEnumerable<string> list)
@@ -121,24 +161,24 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     }
 
     private static bool IsValidPropertyKey(char c) =>
-      char.IsLetterOrDigit(c)
-      || c == '_'
-      || c == '-'
-      || c == '+'
-      || c == '.';
+      char.IsLetterOrDigit(c) ||
+      c == '_' ||
+      c == '-' ||
+      c == '+' ||
+      c == '.';
 
     private static bool IsValidPropertyValue(char c) =>
-      char.IsLetterOrDigit(c)
-      || c == '_'
-      || c == '-'
-      || c == '+'
-      || c == '.'
-      || c == '{'
-      || c == '}'
-      || c == '<'
-      || c == '>'
-      || c == '('
-      || c == ')'
-      || c == '|';
+      char.IsLetterOrDigit(c) ||
+      c == '_' ||
+      c == '-' ||
+      c == '+' ||
+      c == '.' ||
+      c == '{' ||
+      c == '}' ||
+      c == '<' ||
+      c == '>' ||
+      c == '(' ||
+      c == ')' ||
+      c == '|';
   }
 }

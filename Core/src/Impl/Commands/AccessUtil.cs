@@ -19,6 +19,19 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public static readonly int DefaultDegreeOfParallelism = Environment.ProcessorCount;
 
     public static readonly TimeSpan DefaultSafetyPeriod = TimeSpan.FromDays(60);
+
+    public const string ProtectedAll = "all";
+    public const string ProtectedOn = "protected";
+    public const string ProtectedOff = "unprotected";
+    public const string ProtectedDefault = ProtectedOff;
+
+    public static bool? GetProtectedValue([NotNull] string value) => value switch
+      {
+        ProtectedAll => null,
+        ProtectedOn => true,
+        ProtectedOff => false,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+      };
     
     public static int GetDegreeOfParallelism(string degreeOfParallelism)
     {

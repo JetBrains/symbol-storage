@@ -27,6 +27,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly string myToolId;
     private readonly string myVersion;
     private readonly int myDegreeOfParallelism;
+    private readonly bool myIsProtected;
 
     public CreateCommand(
       [NotNull] ILogger logger,
@@ -36,6 +37,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       [NotNull] string toolId,
       [NotNull] string product,
       [NotNull] string version,
+      bool isProtected,
       bool isCompressPe,
       bool isCompressWPdb,
       bool isKeepNonCompressed,
@@ -49,6 +51,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myToolId = toolId ?? throw new ArgumentNullException(nameof(toolId));
       myProduct = product ?? throw new ArgumentNullException(nameof(product));
       myVersion = version ?? throw new ArgumentNullException(nameof(version));
+      myIsProtected = isProtected;
       myIsCompressPe = isCompressPe;
       myIsCompressWPdb = isCompressWPdb;
       myIsKeepNonCompressed = isKeepNonCompressed;
@@ -58,11 +61,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      if (!myProduct.ValidateProduct())
-        throw new ApplicationException($"Invalid product name {myProduct}");
-      if (!myVersion.ValidateVersion())
-        throw new ApplicationException($"Invalid version {myVersion}");
-
+      TagUtil.CheckProductAndVersion(myProduct, myVersion);
+      
       await new Validator(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
 
       var dstFiles = new ConcurrentBag<string>();
@@ -97,10 +97,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       await TagUtil.WriteTagScriptAsync(new Tag
         {
           ToolId = myToolId,
-          FileId = fileId.ToString(),
+          FileId = fileId,
           Product = myProduct,
           Version = myVersion,
           CreationUtcTime = DateTime.UtcNow,
+          IsProtected = myIsProtected,
           Properties = myProperties.Select(x => new TagKeyValue
             {
               Key = x.Key,
@@ -109,8 +110,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).ToArray()
         }, stream);
 
-      var tagFile = Path.Combine(TagUtil.TagDirectory, myProduct, myProduct + '-' + myVersion + '-' + fileId.ToString("N") + TagUtil.TagExtension);
-      await myStorage.CreateForWritingAsync(tagFile, AccessMode.Private, stream);
+      await myStorage.CreateForWritingAsync(TagUtil.MakeTagFile(myProduct, myVersion, fileId), AccessMode.Private, stream);
     }
 
     private static async Task WriteData(

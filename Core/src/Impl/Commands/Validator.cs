@@ -91,31 +91,37 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myLogger.Info($"[{DateTime.Now:s}] Loading tag files{myId}...");
       return myStorage.GetAllTagScriptsAsync(degreeOfParallelism, x => myLogger.Verbose($"  Loading {x}"));
     }
-
+    
     public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItemsAsync(
       int degreeOfParallelism,
       [NotNull] IReadOnlyCollection<string> incProductWildcards,
       [NotNull] IReadOnlyCollection<string> excProductWildcards,
       [NotNull] IReadOnlyCollection<string> incVersionWildcards,
       [NotNull] IReadOnlyCollection<string> excVersionWildcards,
-      TimeSpan safetyPeriod)
+      TimeSpan safetyPeriod,
+      bool? protectedFilter)
     {
       var tagItems = await LoadTagItemsAsync(degreeOfParallelism);
-      var incProductRegexs = incProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
-      var excProductRegexs = excProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
-      var incVersionRegexs = incVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
-      var excVersionRegexs = excVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToArray();
+      var incProductRegexs = incProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
+      var excProductRegexs = excProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
+      var incVersionRegexs = incVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
+      var excVersionRegexs = excVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
       var inc = new List<KeyValuePair<string, Tag>>();
       var exc = new List<KeyValuePair<string, Tag>>();
       foreach (var tagItem in tagItems)
-        if ((incProductRegexs.Length == 0 || incProductRegexs.Any(y => y.IsMatch(tagItem.Value.Product ?? ""))) &&
-            (incVersionRegexs.Length == 0 || incVersionRegexs.Any(y => y.IsMatch(tagItem.Value.Version ?? ""))) &&
-            excProductRegexs.All(y => !y.IsMatch(tagItem.Value.Product ?? "")) &&
-            excVersionRegexs.All(y => !y.IsMatch(tagItem.Value.Version ?? "")) &&
-            tagItem.Value.CreationUtcTime + safetyPeriod < DateTime.UtcNow)
+      {
+        var tag = tagItem.Value;
+        if ((incProductRegexs.Count == 0 || incProductRegexs.Any(y => y.IsMatch(tag.Product ?? ""))) &&
+            (incVersionRegexs.Count == 0 || incVersionRegexs.Any(y => y.IsMatch(tag.Version ?? ""))) &&
+            excProductRegexs.All(y => !y.IsMatch(tag.Product ?? "")) &&
+            excVersionRegexs.All(y => !y.IsMatch(tag.Version ?? "")) &&
+            tag.CreationUtcTime + safetyPeriod < DateTime.UtcNow &&
+            (protectedFilter == null || protectedFilter == tag.IsProtected))
           inc.Add(tagItem);
         else
           exc.Add(tagItem);
+      }
+
       return new(inc, exc);
     }
 
@@ -175,10 +181,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           logger.Verbose($"  Validating {tagFile}");
           var isDirty = false;
 
-          if (!tag.Product.ValidateProduct())
+          if (!TagUtil.ValidateProduct(tag.Product))
             logger.Error($"Invalid product {tag.Product} in file {tagFile}");
 
-          if (!tag.Version.ValidateVersion())
+          if (!TagUtil.ValidateVersion(tag.Version))
             logger.Error($"Invalid version {tag.Version} in file {tagFile}");
 
           if (tag.CreationUtcTime == DateTime.MinValue)

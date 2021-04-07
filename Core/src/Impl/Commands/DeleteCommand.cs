@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
+using JetBrains.SymbolStorage.Impl.Tags;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
@@ -41,11 +41,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
+      TagUtil.CheckProductAndVersionWildcards(myIncProductWildcards, myExcProductWildcards, myIncVersionWildcards, myExcVersionWildcards);
+
       var validator = new Validator(myLogger, myStorage);
       var storageFormat = await validator.ValidateStorageMarkersAsync();
 
       long deleteTags;
-      IReadOnlyCollection<KeyValuePair<string, Tags.Tag>> tagItems;
+      IReadOnlyCollection<KeyValuePair<string, Tag>> tagItems;
       {
         var (incTagItems, excTagItems) = await validator.LoadTagItemsAsync(
           myDegreeOfParallelism,
@@ -53,7 +55,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           myExcProductWildcards,
           myIncVersionWildcards,
           myExcVersionWildcards,
-          mySafetyPeriod);
+          mySafetyPeriod,
+          false);
         validator.DumpProducts(incTagItems);
         validator.DumpProperties(incTagItems);
         deleteTags = incTagItems.Count;

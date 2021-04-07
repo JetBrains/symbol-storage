@@ -52,6 +52,19 @@ namespace JetBrains.SymbolStorage
         var degreeOfParallelismOption = commandLine.Option("-t|--tasks", $"Execute task count in parallel. Default is the processor count ({AccessUtil.DefaultDegreeOfParallelism} for now).", CommandOptionType.SingleValue);
         var verboseOption = commandLine.Option("-v|--verbose", "Verbose mode.", CommandOptionType.NoValue);
 
+        static void FilterOptions(
+          CommandLineApplication x,
+          out CommandOption incFilterProductOption,
+          out CommandOption excFilterProductOption,
+          out CommandOption incFilterVersionOption,
+          out CommandOption excFilterVersionOption)
+        {
+          incFilterProductOption = x.Option("-fpi|--product-include-filter", "Select wildcard for include product filtering.", CommandOptionType.MultipleValue);
+          excFilterProductOption = x.Option("-fpe|--product-exclude-filter", "Select wildcard for exclude product filtering.", CommandOptionType.MultipleValue);
+          incFilterVersionOption = x.Option("-fvi|--version-include-filter", "Select wildcard for include version filtering.", CommandOptionType.MultipleValue);
+          excFilterVersionOption = x.Option("-fve|--version-exclude-filter", "Select wildcard for exclude version filtering.", CommandOptionType.MultipleValue);
+        }
+
         if (mode == MainMode.Full)
         {
           commandLine.Command("validate", x =>
@@ -68,18 +81,10 @@ namespace JetBrains.SymbolStorage
                 fixOption.HasValue()).ExecuteAsync());
             });
 
-          static void FilterOptions(
+          static void SafetyPeriodOptions(
             CommandLineApplication x,
-            out CommandOption incFilterProductOption,
-            out CommandOption excFilterProductOption,
-            out CommandOption incFilterVersionOption,
-            out CommandOption excFilterVersionOption,
             out CommandOption safetyPeriodOption)
           {
-            incFilterProductOption = x.Option("-fpi|--product-include-filter", "Select wildcard for include product filtering.", CommandOptionType.MultipleValue);
-            excFilterProductOption = x.Option("-fpe|--product-exclude-filter", "Select wildcard for exclude product filtering.", CommandOptionType.MultipleValue);
-            incFilterVersionOption = x.Option("-fvi|--version-include-filter", "Select wildcard for include version filtering.", CommandOptionType.MultipleValue);
-            excFilterVersionOption = x.Option("-fve|--version-exclude-filter", "Select wildcard for exclude version filtering.", CommandOptionType.MultipleValue);
             safetyPeriodOption = x.Option("-sp|--safety-period", $"The safety period for young files. {AccessUtil.DefaultSafetyPeriod.Days:D} days by default.", CommandOptionType.MultipleValue);
           }
 
@@ -91,8 +96,9 @@ namespace JetBrains.SymbolStorage
                 out var incFilterProductOption,
                 out var excFilterProductOption,
                 out var incFilterVersionOption,
-                out var excFilterVersionOption,
-                out var safetyPeriodOption);
+                out var excFilterVersionOption);
+              SafetyPeriodOptions(x, out var safetyPeriodOption);
+              var filterProtectedOption = x.Option("-fr|--protected-filter", $"Filter by protected value: {AccessUtil.ProtectedAll}, {AccessUtil.ProtectedOn} and {AccessUtil.ProtectedOff}. The default is {AccessUtil.ProtectedDefault}.", CommandOptionType.SingleValue);
               x.OnExecute(() => new ListCommand(
                 new ConsoleLogger(verboseOption.HasValue()),
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
@@ -101,7 +107,8 @@ namespace JetBrains.SymbolStorage
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
                 excFilterVersionOption.Values,
-                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).ExecuteAsync());
+                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod),
+                ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedDefault)).ExecuteAsync());
             });
 
           commandLine.Command("delete", x =>
@@ -112,8 +119,8 @@ namespace JetBrains.SymbolStorage
                 out var incFilterProductOption,
                 out var excFilterProductOption,
                 out var incFilterVersionOption,
-                out var excFilterVersionOption,
-                out var safetyPeriodOption);
+                out var excFilterVersionOption);
+              SafetyPeriodOptions(x, out var safetyPeriodOption);
               x.OnExecute(() => new DeleteCommand(
                 new ConsoleLogger(verboseOption.HasValue()),
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
@@ -166,6 +173,7 @@ namespace JetBrains.SymbolStorage
             var compressPeOption = x.Option("-cpe|--compress-pe", "Enable compression for PE files. Windows only. Incompatible with the SSQP.", CommandOptionType.NoValue);
             var keepNonCompressedOption = x.Option("-k|--keep-non-compressed", "Store also non-compressed version in storage.", CommandOptionType.NoValue);
             var propertiesOption = x.Option("-p|--property", "The property to be stored in metadata in following format: <key1>=<value1>[,<key2>=<value2>[,...]]. Can be declared many times.", CommandOptionType.MultipleValue);
+            var protectedOption = x.Option("-r|--protected", "Protect files form deletion.", CommandOptionType.NoValue);
             StorageOptions(x, out var newStorageFormatOption);
             var productArgument = x.Argument("product", "The product name.");
             var versionArgument = x.Argument("version", "The product version.");
@@ -189,6 +197,7 @@ namespace JetBrains.SymbolStorage
                     toolName + '/' + toolVersion,
                     productArgument.Value,
                     versionArgument.Value,
+                    protectedOption.HasValue(),
                     compressPeOption.HasValue(),
                     compressWPdbOption.HasValue(),
                     keepNonCompressedOption.HasValue(),
@@ -211,6 +220,27 @@ namespace JetBrains.SymbolStorage
               });
           });
 
+        commandLine.Command("protect", x =>
+          {
+            x.HelpOption("-h|--help");
+            x.Description = "Protect storage files from deletion";
+            FilterOptions(x,
+              out var incFilterProductOption,
+              out var excFilterProductOption,
+              out var incFilterVersionOption,
+              out var excFilterVersionOption);
+            var clearOption = x.Option("-c|--clear", "Clear protection.", CommandOptionType.NoValue);
+            x.OnExecute(() => new ProtectedCommand(
+              new ConsoleLogger(verboseOption.HasValue()),
+              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
+              AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
+              incFilterProductOption.Values,
+              excFilterProductOption.Values,
+              incFilterVersionOption.Values,
+              excFilterVersionOption.Values,
+              !clearOption.HasValue()).ExecuteAsync());
+          });
+
         if (args.Length != 0)
         {
           var res = commandLine.Execute(args);
@@ -229,10 +259,11 @@ namespace JetBrains.SymbolStorage
       }
     }
 
-    private static TimeSpan ParseDays([CanBeNull] string days, TimeSpan defaultDays)
-    {
-      return days != null ? TimeSpan.FromDays(ulong.Parse(days)) : defaultDays;
-    }
+    private static TimeSpan ParseDays([CanBeNull] string days, TimeSpan defaultDays) => days != null ? TimeSpan.FromDays(ulong.Parse(days)) : defaultDays;
+
+    private static bool? ParseProtected([CanBeNull] string value, [NotNull] string defaultValue) => value != null
+      ? AccessUtil.GetProtectedValue(value)
+      : AccessUtil.GetProtectedValue(defaultValue);
 
     private static async Task<IReadOnlyCollection<string>> ParsePaths([NotNull] IEnumerable<string> paths)
     {
