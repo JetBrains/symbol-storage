@@ -12,51 +12,33 @@ namespace JetBrains.SymbolStorage.Impl.Commands
   {
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
-    private readonly IReadOnlyCollection<string> myIncProductWildcards;
-    private readonly IReadOnlyCollection<string> myExcProductWildcards;
-    private readonly IReadOnlyCollection<string> myIncVersionWildcards;
-    private readonly IReadOnlyCollection<string> myExcVersionWildcards;
     private readonly TimeSpan mySafetyPeriod;
     private readonly int myDegreeOfParallelism;
+    private readonly IdentityFilter myIdentityFilter;
 
     public DeleteCommand(
       [NotNull] ILogger logger,
       [NotNull] IStorage storage,
       int degreeOfParallelism,
-      [NotNull] IReadOnlyCollection<string> incProductWildcards,
-      [NotNull] IReadOnlyCollection<string> excProductWildcards,
-      [NotNull] IReadOnlyCollection<string> incVersionWildcards,
-      [NotNull] IReadOnlyCollection<string> excVersionWildcards,
+      [NotNull] IdentityFilter identityFilter,
       TimeSpan safetyPeriod)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
       myDegreeOfParallelism = degreeOfParallelism;
-      myIncProductWildcards = incProductWildcards ?? throw new ArgumentNullException(nameof(incProductWildcards));
-      myExcProductWildcards = excProductWildcards ?? throw new ArgumentNullException(nameof(excProductWildcards));
-      myIncVersionWildcards = incVersionWildcards ?? throw new ArgumentNullException(nameof(incVersionWildcards));
-      myExcVersionWildcards = excVersionWildcards ?? throw new ArgumentNullException(nameof(excVersionWildcards));
+      myIdentityFilter = identityFilter ?? throw new ArgumentNullException(nameof(identityFilter));
       mySafetyPeriod = safetyPeriod;
     }
 
     public async Task<int> ExecuteAsync()
     {
-      TagUtil.CheckProductAndVersionWildcards(myIncProductWildcards, myExcProductWildcards, myIncVersionWildcards, myExcVersionWildcards);
-
       var validator = new Validator(myLogger, myStorage);
       var storageFormat = await validator.ValidateStorageMarkersAsync();
 
       long deleteTags;
       IReadOnlyCollection<KeyValuePair<string, Tag>> tagItems;
       {
-        var (incTagItems, excTagItems) = await validator.LoadTagItemsAsync(
-          myDegreeOfParallelism,
-          myIncProductWildcards,
-          myExcProductWildcards,
-          myIncVersionWildcards,
-          myExcVersionWildcards,
-          mySafetyPeriod,
-          false);
+        var (incTagItems, excTagItems) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, mySafetyPeriod, false);
         validator.DumpProducts(incTagItems);
         validator.DumpProperties(incTagItems);
         deleteTags = incTagItems.Count;

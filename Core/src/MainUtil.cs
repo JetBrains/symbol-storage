@@ -103,10 +103,11 @@ namespace JetBrains.SymbolStorage
                 new ConsoleLogger(verboseOption.HasValue()),
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-                incFilterProductOption.Values,
-                excFilterProductOption.Values,
-                incFilterVersionOption.Values,
-                excFilterVersionOption.Values,
+                new IdentityFilter(
+                  incFilterProductOption.Values,
+                  excFilterProductOption.Values,
+                  incFilterVersionOption.Values,
+                  excFilterVersionOption.Values),
                 ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod),
                 ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedDefault)).ExecuteAsync());
             });
@@ -125,10 +126,11 @@ namespace JetBrains.SymbolStorage
                 new ConsoleLogger(verboseOption.HasValue()),
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-                incFilterProductOption.Values,
-                excFilterProductOption.Values,
-                incFilterVersionOption.Values,
-                excFilterVersionOption.Values,
+                new IdentityFilter(
+                  incFilterProductOption.Values,
+                  excFilterProductOption.Values,
+                  incFilterVersionOption.Values,
+                  excFilterVersionOption.Values),
                 ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).ExecuteAsync());
             });
         }
@@ -195,8 +197,9 @@ namespace JetBrains.SymbolStorage
                     degreeOfParallelism,
                     StorageFormat.Normal,
                     toolName + '/' + toolVersion,
-                    productArgument.Value,
-                    versionArgument.Value,
+                    new Identity(
+                      productArgument.Value,
+                      versionArgument.Value),
                     protectedOption.HasValue(),
                     compressPeOption.HasValue(),
                     compressWPdbOption.HasValue(),
@@ -234,10 +237,11 @@ namespace JetBrains.SymbolStorage
               new ConsoleLogger(verboseOption.HasValue()),
               AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
               AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-              incFilterProductOption.Values,
-              excFilterProductOption.Values,
-              incFilterVersionOption.Values,
-              excFilterVersionOption.Values,
+              new IdentityFilter(
+                incFilterProductOption.Values,
+                excFilterProductOption.Values,
+                incFilterVersionOption.Values,
+                excFilterVersionOption.Values),
               !clearOption.HasValue()).ExecuteAsync());
           });
 

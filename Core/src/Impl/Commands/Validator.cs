@@ -94,27 +94,19 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     
     public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItemsAsync(
       int degreeOfParallelism,
-      [NotNull] IReadOnlyCollection<string> incProductWildcards,
-      [NotNull] IReadOnlyCollection<string> excProductWildcards,
-      [NotNull] IReadOnlyCollection<string> incVersionWildcards,
-      [NotNull] IReadOnlyCollection<string> excVersionWildcards,
+      [NotNull] IdentityFilter identityFilter,
       TimeSpan safetyPeriod,
       bool? protectedFilter)
     {
+      if (identityFilter == null)
+        throw new ArgumentNullException(nameof(identityFilter));
       var tagItems = await LoadTagItemsAsync(degreeOfParallelism);
-      var incProductRegexs = incProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
-      var excProductRegexs = excProductWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
-      var incVersionRegexs = incVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
-      var excVersionRegexs = excVersionWildcards.Select(x => new Regex(ConvertWildcardToRegex(x))).ToList();
       var inc = new List<KeyValuePair<string, Tag>>();
       var exc = new List<KeyValuePair<string, Tag>>();
       foreach (var tagItem in tagItems)
       {
         var tag = tagItem.Value;
-        if ((incProductRegexs.Count == 0 || incProductRegexs.Any(y => y.IsMatch(tag.Product ?? ""))) &&
-            (incVersionRegexs.Count == 0 || incVersionRegexs.Any(y => y.IsMatch(tag.Version ?? ""))) &&
-            excProductRegexs.All(y => !y.IsMatch(tag.Product ?? "")) &&
-            excVersionRegexs.All(y => !y.IsMatch(tag.Version ?? "")) &&
+        if (identityFilter.IsMatch(tag.Product ?? "", tag.Version ?? "") &&
             tag.CreationUtcTime + safetyPeriod < DateTime.UtcNow &&
             (protectedFilter == null || protectedFilter == tag.IsProtected))
           inc.Add(tagItem);
@@ -123,12 +115,6 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
 
       return new(inc, exc);
-    }
-
-    [NotNull]
-    private static string ConvertWildcardToRegex([NotNull] string str)
-    {
-      return "^" + Regex.Escape(str).Replace("\\?", ".").Replace("\\*", ".*") + "$";
     }
 
     public void DumpProducts([NotNull] IEnumerable<KeyValuePair<string, Tag>> tagItems)

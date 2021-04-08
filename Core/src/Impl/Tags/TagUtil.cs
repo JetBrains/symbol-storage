@@ -15,17 +15,15 @@ namespace JetBrains.SymbolStorage.Impl.Tags
 {
   internal static class TagUtil
   {
-    public const string TagDirectory = "_jb.tags";
-    public const string TagExtension = ".tag";
+    private const string TagDirectory = "_jb.tags";
+    private const string TagExtension = ".tag";
 
     [NotNull]
-    public static string MakeTagFile([NotNull] string product, [NotNull] string version, Guid fileId)
+    public static string MakeTagFile([NotNull] Identity identity, Guid fileId)
     {
-      if (product == null)
-        throw new ArgumentNullException(nameof(product));
-      if (version == null)
-        throw new ArgumentNullException(nameof(version));
-      return Path.Combine(TagDirectory, product, product + '-' + version + '-' + fileId.ToString("N") + TagExtension);
+      if (identity == null)
+        throw new ArgumentNullException(nameof(identity));
+      return Path.Combine(TagDirectory, identity.Product, identity.Product + '-' + identity.Version + '-' + fileId.ToString("N") + TagExtension);
     }
 
     [NotNull]
@@ -92,28 +90,6 @@ namespace JetBrains.SymbolStorage.Impl.Tags
 
     public static bool ValidateProductWildcard([CanBeNull] string productWildcard) => !string.IsNullOrEmpty(productWildcard) && productWildcard.All(c => IsWildcard(c) || IsValidProduct(c));
     public static bool ValidateVersionWildcard([CanBeNull] string versionWildcard) => !string.IsNullOrEmpty(versionWildcard) && versionWildcard.All(c => IsWildcard(c) || IsValidVersion(c));
-
-    public static void CheckProductAndVersion([CanBeNull] string product, [CanBeNull] string version)
-    {
-      if (!ValidateProduct(product))
-        throw new ApplicationException($"Invalid product name {product}");
-      if (!ValidateVersion(version))
-        throw new ApplicationException($"Invalid version {version}");
-    }
-
-    public static void CheckProductAndVersionWildcards(
-      [NotNull] IEnumerable<string> incProductWildcards,
-      [NotNull] IEnumerable<string> excProductWildcards,
-      [NotNull] IEnumerable<string> incVersionWildcards,
-      [NotNull] IEnumerable<string> excVersionWildcards)
-    {
-      foreach (var productWildcard in incProductWildcards.Concat(excProductWildcards))
-        if (!ValidateProductWildcard(productWildcard))
-          throw new ApplicationException($"Invalid product name wildcard {productWildcard}");
-      foreach (var versionWildcard in incVersionWildcards.Concat(excVersionWildcards))
-        if (!ValidateVersionWildcard(versionWildcard))
-          throw new ApplicationException($"Invalid version wildcard {versionWildcard}");
-    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsWildcard(char c) =>
