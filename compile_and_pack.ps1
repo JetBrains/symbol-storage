@@ -22,7 +22,7 @@ function pack($_Name, $_Runtime) {
     <title>JetBrains SymbolStorage ' + $_Name + '</title>
     <authors>Mikhail Pilin</authors>
     <copyright>Copyright © 2020-' + $(get-date -Format yyyy) + ' JetBrains s.r.o.</copyright>
-    <projectUrl>https://github.com/JetBrains/symbol_storage</projectUrl>
+    <projectUrl>https://github.com/JetBrains/symbol-storage</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <license type="expression">MIT</license>
     <description>JetBrains SymbolStorage ' + $_Name + '</description>
