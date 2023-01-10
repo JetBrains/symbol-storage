@@ -43,8 +43,14 @@ function compileAndPack($_Runtime) {
   pack Uploader $_Runtime
 }
 
-compileAndPack "win-x64"    
-compileAndPack "win-x86"    
-compileAndPack "linux-x64"  
+compileAndPack "linux-arm"
 compileAndPack "linux-arm64"
-compileAndPack "osx-x64"    
+compileAndPack "linux-x64"
+compileAndPack "linux-musl-arm"
+compileAndPack "linux-musl-arm64"
+compileAndPack "linux-musl-x64"
+compileAndPack "osx-arm64"
+compileAndPack "osx-x64"
+compileAndPack "win-arm64"
+compileAndPack "win-x64"
+compileAndPack "win-x86"

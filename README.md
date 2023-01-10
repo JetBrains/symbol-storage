@@ -27,10 +27,10 @@ This repository contains tools for mantaining the company or private symbol stor
 - ELF binaries
 - Mach-O binaries
 
-##### Supported platforms (same as .NET 5.0)
-- Windows x64/x86
-- Linux x64/arm64
-- macOS x64
+##### Supported platforms (same as .NET 6.0)
+- Windows arm64/x64/x86
+- Linux Glibc/Musl arm/arm64/x64
+- macOS arm64/x64
 
 ##### Tested on
 - Windows 10 Pro x64 20H2 Build 19042.804
