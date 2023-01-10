@@ -12,7 +12,7 @@ This repository contains tools for mantaining the company or private symbol stor
 - [x] Uploading one storage to another with consistensy checking
 - [x] Gather files on user directories and generate storage for them
 - [ ] Working with archives
-- [ ] Generate .symref files to ability to download symbols with scripts
+- [x] Generate .symref files to ability to download symbols with scripts
 
 ##### Supported storages
 - Local filesystem

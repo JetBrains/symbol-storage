@@ -18,8 +18,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly bool myCompressWPdb;
     private readonly bool myIsKeepNonCompressed;
     private readonly ILogger myLogger;
-    private readonly Func<string, string, string, Task> myProcessNormal;
-    private readonly Func<string, string, string, Task> myProcessCompressed;
+    private readonly Func<ITracer, string, string, string, Task> myProcessNormal;
+    private readonly Func<ITracer, string, string, string, Task> myProcessCompressed;
     private readonly IEnumerable<string> mySources;
 
     public Scanner(
@@ -29,8 +29,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       bool compressWPdb,
       bool isKeepNonCompressed,
       [NotNull] IEnumerable<string> sourcePaths,
-      [NotNull] Func<string, string, string, Task> processNormal,
-      [NotNull] Func<string, string, string, Task> processPacked,
+      [NotNull] Func<ITracer, string, string, string, Task> processNormal,
+      [NotNull] Func<ITracer, string, string, string, Task> processPacked,
       [CanBeNull] string baseDir = null)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -88,12 +88,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             myCompressWPdb && keyType == KeyType.WPdb ||
             myCompressPe && keyType == KeyType.Pe)
           {
-            await myProcessCompressed(sourceDir, srcFile, Path.ChangeExtension(dstFile, PathUtil.GetPackedExtension(Path.GetExtension(dstFile))));
+            await myProcessCompressed(tracer, sourceDir, srcFile, Path.ChangeExtension(dstFile, PathUtil.GetPackedExtension(Path.GetExtension(dstFile))));
             if (myIsKeepNonCompressed)
-              await myProcessNormal(sourceDir, srcFile, dstFile);
+              await myProcessNormal(tracer, sourceDir, srcFile, dstFile);
           }
           else
-            await myProcessNormal(sourceDir, srcFile, dstFile);
+            await myProcessNormal(tracer, sourceDir, srcFile, dstFile);
         }
       }
     }

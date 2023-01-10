@@ -60,17 +60,21 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       await new Validator(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
 
-      var dstFiles = new ConcurrentBag<string>();
+      var dstFiles = new ConcurrentDictionary<string, bool>();
       var statistics = await new Scanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
-        async (srcDir, srcFile, dstFile) =>
+        async (tracer, srcDir, srcFile, dstFile) =>
           {
-            await WriteData(Path.Combine(srcDir, srcFile), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
-            dstFiles.Add(dstFile);
+            if (dstFiles.TryAdd(dstFile, false))
+              await WriteData(Path.Combine(srcDir, srcFile), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
+            else
+              tracer.Warning($"The file {dstFile} already was created");
           },
-        async (srcDir, srcFile, dstFile) =>
+        async (tracer, srcDir, srcFile, dstFile) =>
           {
-            await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
-            dstFiles.Add(dstFile);
+            if (dstFiles.TryAdd(dstFile, false))
+              await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
+            else
+              tracer.Warning($"The file {dstFile} already was created");
           }).ExecuteAsync();
       myLogger.Info($"[{DateTime.Now:s}] Done with data (warnings: {statistics.Warnings}, errors: {statistics.Errors})");
       if (statistics.HasProblems)
@@ -79,7 +83,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         return 1;
       }
 
-      await WriteTag(dstFiles.Select(Path.GetDirectoryName).Distinct());
+      await WriteTag(dstFiles.Select(x => Path.GetDirectoryName(x.Key)));
       await myStorage.InvalidateExternalServicesAsync();
       return 0;
     }
@@ -102,7 +106,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
               Key = x.Key,
               Value = x.Value
             }).ToArray(),
-          Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).ToArray()
+          Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).Distinct().ToArray()
         }, stream);
 
       await myStorage.CreateForWritingAsync(TagUtil.MakeTagFile(myIdentity, fileId), AccessMode.Private, stream);

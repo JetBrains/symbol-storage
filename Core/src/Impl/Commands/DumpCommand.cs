@@ -42,12 +42,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       var map = new ConcurrentBag<KeyValuePair<string, string>>();
       var statistics = await new Scanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, false, mySources,
-        (_, srcFile, dstFile) =>
+        (_, _, srcFile, dstFile) =>
           {
             map.Add(KeyValuePair.Create(srcFile, dstFile));
             return Task.CompletedTask;
           },
-        (_, srcFile, dstFile) =>
+        (_, _, srcFile, dstFile) =>
           {
             map.Add(KeyValuePair.Create(srcFile, dstFile));
             return Task.CompletedTask;
