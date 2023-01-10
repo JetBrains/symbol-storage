@@ -222,6 +222,30 @@ namespace JetBrains.SymbolStorage
                 }
               });
           });
+        
+        commandLine.Command("dump", x =>
+          {
+            x.HelpOption("-h|--help");
+            x.Description = "Dump symbol references";
+            var compressWPdbOption = x.Option("-cwpdb|--compress-windows-pdb", "Enable compression for Windows PDB files. Windows only. Incompatible with the SSQP.", CommandOptionType.NoValue);
+            var compressPeOption = x.Option("-cpe|--compress-pe", "Enable compression for PE files. Windows only. Incompatible with the SSQP.", CommandOptionType.NoValue);
+            var symbolReferenceFileOption = x.Argument("symref", "Symbol references file.");
+            var baseDirOption = x.Argument("basedir", "Base Directory.");
+            var sourcesOption = x.Argument("path [path [...]] or @file", "Source directories or files with symbols, executables and shared libraries.", true);
+
+            x.OnExecute(async () =>
+              {
+                var sources = await ParsePaths(sourcesOption.Values.Count != 0 ? sourcesOption.Values : new[] { baseDirOption.Value });
+                return await new DumpCommand(
+                  new ConsoleLogger(verboseOption.HasValue()),
+                  AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
+                  compressPeOption.HasValue(),
+                  compressWPdbOption.HasValue(),
+                  symbolReferenceFileOption.Value,
+                  sources,
+                  baseDirOption.Value).ExecuteAsync();
+              });
+          });
 
         commandLine.Command("protect", x =>
           {

@@ -57,7 +57,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             return new[] {new KeyValuePair<string, string>(string.IsNullOrEmpty(myBaseDir) ? Path.GetDirectoryName(fullPath) ?? "" : myBaseDir, fullPath)};
 
           if (Directory.Exists(fullPath))
-            return Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories).Select(x => new KeyValuePair<string, string>(fullPath, x)).ToArray();
+            return Directory.GetFiles(fullPath, "*", SearchOption.AllDirectories).Select(x => new KeyValuePair<string, string>(string.IsNullOrEmpty(myBaseDir) ? fullPath : myBaseDir, x)).ToArray();
 
           tracer.Error($"The source path {fullPath} doesn't exist");
           return Array.Empty<KeyValuePair<string, string>>();
