@@ -9,6 +9,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
   {
     public const string AwsS3AccessKeyEnvironmentVariable = "JETBRAINS_AWSS3_ACCESS_KEY";
     public const string AwsS3SecretKeyEnvironmentVariable = "JETBRAINS_AWSS3_SECRET_KEY";
+    public const string AwsS3SessionTokenEnvironmentVariable = "JETBRAINS_AWSS3_SESSION_TOKEN";
     public const string AwsCloudFrontDistributionIdEnvironmentVariable = "JETBRAINS_AWSCF_DISTRIBUTION_ID";
 
     public const string NormalStorageFormat = "normal";
@@ -65,8 +66,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       var accessKey = Environment.GetEnvironmentVariable(AwsS3AccessKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 access key");
       var secretKey = Environment.GetEnvironmentVariable(AwsS3SecretKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 secret key");
-      var cloudFrontDistributionId = Environment.GetEnvironmentVariable(AwsCloudFrontDistributionIdEnvironmentVariable).ConvertSpecialEmptyValue() ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS Cloud Front distribution identifier");
-      return new AwsS3Storage(accessKey, secretKey, awsS3BucketName, awsS3RegionEndpoint, cloudFrontDistributionId);
+      var sessionToken = Environment.GetEnvironmentVariable(AwsS3SessionTokenEnvironmentVariable).ConvertSpecialEmptyValue() ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 session token (optional)");
+      var cloudFrontDistributionId = Environment.GetEnvironmentVariable(AwsCloudFrontDistributionIdEnvironmentVariable).ConvertSpecialEmptyValue() ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS Cloud Front distribution identifier (optional)");
+      return new AwsS3Storage(accessKey, secretKey, sessionToken, awsS3BucketName, awsS3RegionEndpoint, cloudFrontDistributionId);
     }
 
     [CanBeNull]

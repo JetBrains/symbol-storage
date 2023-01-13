@@ -25,13 +25,16 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     public AwsS3Storage(
       [NotNull] string accessKey,
       [NotNull] string secretKey,
+      [CanBeNull] string sessionToken,
       [NotNull] string bucketName,
       [NotNull] string region,
       [CanBeNull] string cloudFrontDistributionId = null,
       bool supportAcl = true)
     {
       var regionEndpoint = RegionEndpoint.GetBySystemName(region);
-      myS3Client = new AmazonS3Client(accessKey, secretKey, regionEndpoint);
+      myS3Client = !string.IsNullOrEmpty(sessionToken)
+        ? new AmazonS3Client(accessKey, secretKey, sessionToken, regionEndpoint)
+        : new AmazonS3Client(accessKey, secretKey, regionEndpoint);
       myCloudFrontClient = new AmazonCloudFrontClient(accessKey, secretKey, regionEndpoint);
       myBucketName = bucketName ?? throw new ArgumentNullException(nameof(bucketName));
       myCloudFrontDistributionId = cloudFrontDistributionId;

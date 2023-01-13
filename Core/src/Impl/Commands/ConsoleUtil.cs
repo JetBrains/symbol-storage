@@ -7,9 +7,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
   internal static class ConsoleUtil
   {
     [NotNull]
-    public static string ReadHiddenConsoleInput([NotNull] string str)
+    public static string ReadHiddenConsoleInput([NotNull] string msg)
     {
-      Console.Write(str);
+      Console.Write(msg);
       Console.Write(": ");
       var secret = new StringBuilder();
       while (true)
