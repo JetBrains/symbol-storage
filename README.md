@@ -1,4 +1,4 @@
-# Symbol Storage manager
+# Symbol Storage Uploader/Manager [![official JetBrains project](https://jb.gg/badges/official.svg)](https://confluence.jetbrains.com/display/ALL/JetBrains+on+GitHub)
 This repository contains tools for mantaining the company or private symbol storage in accordance [Simple Symbol Query Protocol (SSQP)](https://github.com/dotnet/symstore/blob/master/docs/specs/Simple_Symbol_Query_Protocol.md) and [SSQP Key Conventions](https://github.com/dotnet/symstore/blob/master/docs/specs/SSQP_Key_Conventions.md).
 
 ##### Main features:
