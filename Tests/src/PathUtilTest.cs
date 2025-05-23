@@ -32,7 +32,7 @@ namespace JetBrains.SymbolStorage.Tests
     {
       var path2 = path
         ?.Replace('\\', Path.DirectorySeparatorChar)
-        .Replace('/', RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '/' : '\\');
+        .Replace('/', RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '/' : '\\'); // To verify, that path does not contain separator from other OS
       Assert.Throws<ArgumentException>(() =>
       {
         string checkedPath = path2.CheckSystemFile();
