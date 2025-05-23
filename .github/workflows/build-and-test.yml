@@ -134,7 +134,7 @@ jobs:
 
     env:
       MSBUILDTERMINALLOGGER: off
-      tfm: ${{ (contains(matrix.os-labels, 'riscv64') || contains(matrix.os-labels, 'ppc64le')) && 'net9.0' || 'net8.0' }}
+      tfm: 'net9.0'
 
     steps:
       - name: Checkout
