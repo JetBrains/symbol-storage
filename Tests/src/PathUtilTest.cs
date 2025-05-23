@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using JetBrains.SymbolStorage.Impl;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -29,15 +30,14 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow("a\\")]
     public void CheckSystemFileTest(string path)
     {
-      var path2 = path?.Replace('\\', Path.DirectorySeparatorChar);
-      try
+      var path2 = path
+        ?.Replace('\\', Path.DirectorySeparatorChar)
+        .Replace('/', RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '/' : '\\');
+      Assert.Throws<ArgumentException>(() =>
       {
-        Assert.IsNotNull(path2.CheckSystemFile());
-        Assert.Fail();
-      }
-      catch (ArgumentException)
-      {
-      }
+        string checkedPath = path2.CheckSystemFile();
+        Assert.AreSame(path2, checkedPath);
+      });
     }
     
     [DataTestMethod]
