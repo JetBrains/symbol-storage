@@ -1,0 +1,154 @@
+name: Build and run tests
+
+on:
+  schedule:
+    - cron: "0 2 * * 1,4"
+  push:
+    branches: [ master ]
+  pull_request:
+      types: [ opened, synchronize, reopened, ready_for_review, labeled, unlabeled ]
+
+jobs:
+  net-x64:
+    name: .NET x64
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04, macos-13, windows-latest ]
+
+    runs-on: ${{ matrix.os }}
+
+    env:
+      MSBUILDTERMINALLOGGER: off
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Restore
+        working-directory: ${{ github.workspace }}
+        run: dotnet restore
+      - name: Build and run tests
+        working-directory: ${{ github.workspace }}
+        run: dotnet test --configuration Release --no-restore --verbosity normal --logger 'trx;LogFilePrefix=test-results'
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: net-test-results-x64-${{ matrix.os }}
+          path: ${{ github.workspace }}/**/tests/TestResults/*
+          if-no-files-found: error
+
+  net-arm64:
+    name: .NET ARM64
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04-arm, macos-latest, windows-11-arm]
+
+    runs-on: ${{ matrix.os }}
+    
+    env:
+      MSBUILDTERMINALLOGGER: off
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Restore
+        working-directory: ${{ github.workspace }}
+        run: dotnet restore
+      - name: Build and run arm64 tests
+        working-directory: ${{ github.workspace }}
+        run: dotnet test --configuration Release --no-restore --verbosity normal --logger 'trx;LogFilePrefix=test-results'
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: net-test-results-arm64-${{ matrix.os }}
+          path: ${{ github.workspace }}/**/tests/TestResults/*
+          if-no-files-found: error
+
+  net-macos-arm64-x64-emu:
+    name: .NET macOS ARM64 in x64 emulation mode
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-latest ]
+
+    runs-on: ${{ matrix.os }}
+    
+    env:
+      MSBUILDTERMINALLOGGER: off
+      DotNetSdkX64:   "~/.dotnet-sdk/x64"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Manually setup .NET 9.0 x64
+        working-directory: ${{ github.workspace }}
+        run: >
+          curl -fsSLO https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh && chmod +x dotnet-install.sh && \
+            ./dotnet-install.sh --architecture x64   --skip-non-versioned-files --channel 9.0 --install-dir $DotNetSdkX64 
+      - name: Restore
+        working-directory: ${{ github.workspace }}
+        run: $DotNetSdkArm64/dotnet restore
+      - name: Build and run x64 tests
+        working-directory: ${{ github.workspace }}
+        run: $DotNetSdkX64/dotnet test --configuration Release --no-restore --verbosity normal --logger 'trx;LogFilePrefix=test-results'
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: net-test-results-arm64-x64emu-${{ matrix.os }}
+          path: ${{ github.workspace }}/**/tests/TestResults/*
+          if-no-files-found: error
+
+  net-self-hosted:
+    name: .NET SelfHosted
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os-labels: [linux, amd64, musl]
+          - os-labels: [linux, arm64, musl]
+          - os-labels: [linux, s390x, glibc]
+          - os-labels: [linux, ppc64le, glibc]
+          - os-labels: [linux, riscv64, glibc]
+          - os-labels: [freebsd, amd64]
+          - os-labels: [freebsd, arm64]
+
+    runs-on:
+      - self-hosted
+      - ${{ matrix.os-labels }}
+
+    env:
+      MSBUILDTERMINALLOGGER: off
+      tfm: ${{ (contains(matrix.os-labels, 'riscv64') || contains(matrix.os-labels, 'ppc64le')) && 'net9.0' || 'net8.0' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Restore
+        working-directory: ${{ github.workspace }}
+        run: dotnet restore -p:JB_TargetFramework=${{ env.tfm }}
+      - name: Build and Tests
+        working-directory: ${{ github.workspace }}
+        run: dotnet test -f ${{ env.tfm }} -p:JB_TargetFramework=${{ env.tfm }} --configuration Release --no-restore --verbosity normal --logger 'trx;LogFilePrefix=test-results'
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: net-test-results-self-hosted-${{ join(matrix.os-labels, '-') }}
+          path: ${{ github.workspace }}/net/**/tests/TestResults/*
+          if-no-files-found: error
