@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using JetBrains.SymbolStorage.Impl;
@@ -24,15 +23,15 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(null)]
     [DataRow("")]
     [DataRow("/")]
-    [DataRow("a/b")]
+    [DataRow("/a")]
+    [DataRow("a/")]
     [DataRow("\\")]
     [DataRow("\\a")]
     [DataRow("a\\")]
+    [DataRow("a🀇b")]
     public void CheckSystemFileTest(string path)
     {
-      var path2 = path
-        ?.Replace('\\', Path.DirectorySeparatorChar)
-        .Replace('/', RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '/' : '\\'); // To verify, that path does not contain separator from other OS
+      var path2 = path?.Replace("🀇", RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "/" : "\\"); // To verify, that path does not contain separator from other OS
       Assert.Throws<ArgumentException>(() =>
       {
         string checkedPath = path2.CheckSystemFile();
