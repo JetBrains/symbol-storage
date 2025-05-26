@@ -132,7 +132,7 @@ namespace JetBrains.SymbolStorage.Impl
       ch >= 'A' && ch <= 'F';
 
     [NotNull]
-    public static string CheckSystemFile([NotNull] this string file)
+    public static string CheckSystemFile([CanBeNull] this string file)
     {
       if (string.IsNullOrEmpty(file))
         throw new ArgumentNullException(nameof(file));
