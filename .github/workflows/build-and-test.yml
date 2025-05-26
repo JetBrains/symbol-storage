@@ -171,3 +171,11 @@ jobs:
           name: net-test-results-self-hosted-${{ join(matrix.os-labels, '-') }}
           path: ${{ github.workspace }}/**/Tests/TestResults/*.trx
           if-no-files-found: error
+
+  check-sdks:
+    runs-on:
+      - self-hosted
+      - [linux, amd64, musl]
+    steps:
+      - name: List sdks
+        run: dotnet --list-sdks
