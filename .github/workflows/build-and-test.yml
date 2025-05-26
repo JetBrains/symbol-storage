@@ -173,9 +173,7 @@ jobs:
           if-no-files-found: error
 
   check-sdks:
-    runs-on:
-      - self-hosted
-      - [linux, amd64, musl]
+    runs-on: [self-hosted, linux, amd64, musl]
     steps:
       - name: List sdks
         run: dotnet --list-sdks
