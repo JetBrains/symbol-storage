@@ -136,6 +136,43 @@ jobs:
           path: ${{ github.workspace }}/**/Tests/TestResults/*.trx
           if-no-files-found: error
 
+  net-windows-arm64-x64-emu:
+    name: .NET Windows ARM64 in x64 emulation mode
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-11-arm ]
+
+    runs-on: ${{ matrix.os }}
+    
+    env:
+      MSBUILDTERMINALLOGGER: off
+      tfm: 'net9.0'
+      DotNetSdkX64: "%LocalAppData%\\Microsoft\\dotnet\\x64"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Manually setup .NET 9.0 x64
+        working-directory: ${{ github.workspace }}
+        run: |
+          Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+          ./dotnet-install.ps1 -Architecture x64 -SkipNonVersionedFiles -Channel 9.0 -InstallDir ${{ env.DotNetSdkX64 }}
+      - name: Restore
+        working-directory: ${{ github.workspace }}
+        run: ${{ env.DotNetSdkX64 }}\dotnet restore -p:JB_TargetFramework=${{ env.tfm }}
+      - name: Build and run x64 tests
+        working-directory: ${{ github.workspace }}
+        run: ${{ env.DotNetSdkX64 }}\dotnet test -p:JB_TargetFramework=${{ env.tfm }} --configuration Release --no-restore --verbosity normal --logger 'trx;LogFilePrefix=test-results'
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: net-test-results-arm64-x64emu-${{ matrix.os }}
+          path: ${{ github.workspace }}/**/Tests/TestResults/*.trx
+          if-no-files-found: error
+
   net-self-hosted:
     name: .NET SelfHosted
 
