@@ -9,7 +9,7 @@ using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
-using Microsoft.Deployment.Compression.Cab;
+using WixToolset.Dtf.Compression.Cab;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
@@ -131,10 +131,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       try
       {
         new CabInfo(tempFile).PackFileSet(Path.GetDirectoryName(sourceFile), new Dictionary<string, string>
-          {
-            // Note: packedStorageRelativeFile should be in following format: [cc/]aaa.bbb/<hash>/aaa.bb_ 
-            {Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(packedStorageRelativeFile)))!, Path.GetFileName(sourceFile)}
-          });
+        {
+          // Note: packedStorageRelativeFile should be in following format: [cc/]aaa.bbb/<hash>/aaa.bb_ 
+          { Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(packedStorageRelativeFile)))!, Path.GetFileName(sourceFile) }
+        });
 
         await using var stream = File.Open(tempFile, FileMode.Open, FileAccess.ReadWrite);
         PatchCompressed(File.GetLastWriteTime(sourceFile), stream);
