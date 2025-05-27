@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,8 +19,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     private const string AwsS3GroupUriAllUsers = "http://acs.amazonaws.com/groups/global/AllUsers";
     private readonly string myBucketName;
     private readonly string myCloudFrontDistributionId;
-    private readonly IAmazonS3 myS3Client;
-    private readonly IAmazonCloudFront myCloudFrontClient;
+    private readonly AmazonS3Client myS3Client;
+    private readonly AmazonCloudFrontClient myCloudFrontClient;
     private readonly bool mySupportAcl;
 
     public AwsS3Storage(
@@ -72,8 +73,6 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       var srcKey = srcFile.CheckSystemFile().NormalizeLinux();
       var dstKey = dstFile.CheckSystemFile().NormalizeLinux();
-      srcFile.CheckSystemFile();
-      dstFile.CheckSystemFile();
       await myS3Client.CopyObjectAsync(new CopyObjectRequest
         {
           SourceBucket = myBucketName,
@@ -107,7 +106,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       var key = file.CheckSystemFile().NormalizeLinux();
       if (!mySupportAcl)
         return AccessMode.Unknown;
-      var respond = await myS3Client.GetACLAsync(new GetACLRequest
+      var respond = await myS3Client.GetObjectAclAsync(new GetObjectAclRequest()
         {
           BucketName = myBucketName,
           Key = key
@@ -116,8 +115,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       var hasUnknown = false;
       var hasReadPublic = false;
       var hasFullControlOwner = false;
-      var ownerId = respond.AccessControlList.Owner.Id;
-      foreach (var grant in respond.AccessControlList.Grants)
+      var ownerId = respond.Owner.Id;
+      foreach (var grant in respond.Grants)
       {
         var grantee = grant.Grantee;
         if (grantee.Type == GranteeType.Group && grantee.URI == AwsS3GroupUriAllUsers && grant.Permission == S3Permission.READ)
@@ -137,12 +136,14 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       var key = file.CheckSystemFile().NormalizeLinux();
       if (mySupportAcl)
-        await myS3Client.PutACLAsync(new PutACLRequest
-          {
-            BucketName = myBucketName,
-            Key = key,
-            CannedACL = GetS3CannedAcl(mode, true)
-          });
+      {
+        await myS3Client.PutObjectAclAsync(new PutObjectAclRequest()
+        {
+          BucketName = myBucketName,
+          Key = key,
+          ACL = GetS3CannedAcl(mode, true)
+        });
+      }
     }
 
     public async Task<TResult> OpenForReadingAsync<TResult>(string file, Func<Stream, Task<TResult>> func)
@@ -172,74 +173,86 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new ArgumentException("The stream should support the seek operation", nameof(stream));
       var key = file.CheckSystemFile().NormalizeLinux();
       await Task.Yield();
+      
       stream.Seek(0, SeekOrigin.Begin);
       string md5Hash;
       using (var md5Alg = new MD5Managed())
+      {
         md5Hash = Convert.ToBase64String(await md5Alg.ComputeHashAsync(stream));
+      }
+      
+      stream.Seek(0, SeekOrigin.Begin);
       await myS3Client.PutObjectAsync(new PutObjectRequest
+      {
+        BucketName = myBucketName,
+        Key = key,
+        InputStream = stream,
+        AutoCloseStream = false,
+        Headers =
         {
-          BucketName = myBucketName,
-          Key = key,
-          InputStream = stream,
-          AutoCloseStream = false,
-          Headers =
-            {
-              ContentLength = stream.Length,
-              ContentMD5 = md5Hash
-            },
-          CannedACL = GetS3CannedAcl(mode, mySupportAcl)
-        });
+          ContentLength = stream.Length,
+          ContentMD5 = md5Hash
+        },
+        CannedACL = GetS3CannedAcl(mode, mySupportAcl)
+      });
     }
 
     public async Task<bool> IsEmptyAsync()
     {
-      var response = await myS3Client.ListObjectsAsync(new ListObjectsRequest
-        {
-          BucketName = myBucketName,
-          MaxKeys = 2
-        });
+      var response = await myS3Client.ListObjectsV2Async(new ListObjectsV2Request()
+      {
+        BucketName = myBucketName,
+        MaxKeys = 2,
+      });
       return !response.S3Objects.Where(IsNotDataJsonFile).Any();
     }
 
     public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, string prefixDir)
     {
-      for (var request = new ListObjectsRequest
-        {
-          BucketName = myBucketName,
-          Prefix = string.IsNullOrEmpty(prefixDir) ? null : prefixDir.NormalizeLinux() + '/'
-        };;)
+      var request = new ListObjectsV2Request()
       {
-        var response = await myS3Client.ListObjectsAsync(request);
+        BucketName = myBucketName,
+        Prefix = string.IsNullOrEmpty(prefixDir) ? null : prefixDir.NormalizeLinux() + '/'
+      };
+      
+      bool isCompleted = false;
+      while (!isCompleted)
+      {
+        var response = await myS3Client.ListObjectsV2Async(request);
         foreach (var s3Object in response.S3Objects.Where(IsUserFile))
+        {
           yield return new ChildrenItem
-            {
-              Name = s3Object.Key.NormalizeSystem(),
-              Size = (mode & ChildrenMode.WithSize) != 0 ? s3Object.Size : -1
-            };
+          {
+            Name = s3Object.Key.NormalizeSystem(),
+            Size = (mode & ChildrenMode.WithSize) != 0 && s3Object.Size.HasValue ? s3Object.Size.Value : -1
+          };
+        }
 
-        request.Marker = response.NextMarker;
-        if (!response.IsTruncated)
-          break;
+        request.ContinuationToken = response.ContinuationToken;
+        Debug.Assert(response.IsTruncated.HasValue, "Unexpected null value of IsTruncated property. It should always be specified");
+        isCompleted = !(response.IsTruncated ?? false);
       }
     }
 
-    public async Task InvalidateExternalServicesAsync(IEnumerable<string> fileMasks)
+    public async Task InvalidateExternalServicesAsync(IEnumerable<string> fileMasks = null)
     {
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {
         var items = fileMasks != null
           ? fileMasks.Select(x => '/' + x.CheckSystemFile().NormalizeLinux()).ToList()
-          : new List<string> {"/*"};
+          : new List<string> { "/*" };
         if (items.Count > 0)
+        {
           await myCloudFrontClient.CreateInvalidationAsync(new CreateInvalidationRequest
-            {
-              DistributionId = myCloudFrontDistributionId,
-              InvalidationBatch = new InvalidationBatch(new Paths
-                {
-                  Items = items,
-                  Quantity = items.Count
-                }, $"symbol-storage-{DateTime.UtcNow:s}")
-            });
+          {
+            DistributionId = myCloudFrontDistributionId,
+            InvalidationBatch = new InvalidationBatch(new Paths
+              {
+                Items = items,
+                Quantity = items.Count
+              }, $"symbol-storage-{DateTime.UtcNow:s}")
+          });
+        }
       }
     }
 
@@ -248,11 +261,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       {
         AccessMode.Private => supportAcl ? S3CannedACL.Private : null,
         AccessMode.Public => supportAcl ? S3CannedACL.PublicRead : null,
-        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, $"Unknown {nameof(AccessMode)} value")
       };
 
     private static bool IsNotDataJsonFile([NotNull] S3Object s3Object) => s3Object.Key != ".data.json";
-    private static bool IsDirectory([NotNull] S3Object s3Object) => s3Object.Key.EndsWith("/") && s3Object.Size == 0;
+    private static bool IsDirectory([NotNull] S3Object s3Object) => s3Object.Key.EndsWith('/') && s3Object.Size == 0;
     private static bool IsUserFile([NotNull] S3Object s3Object) => !IsDirectory(s3Object) && IsNotDataJsonFile(s3Object);
   }
 }
