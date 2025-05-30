@@ -18,6 +18,9 @@ namespace JetBrains.SymbolStorage.Tests
       // Hash calculated for the file, created with originally used lib (MSFTCompressionCab)
       const string expectedSha512HashAsBase64 = "iQ8UcZWf7wQ+Mwoiec4D9N6i9mE4ZdV6QzNBJv7XsJprzDvgofwIGG7pPgpfbzhUCk1OVxxD3ce4CZr8dKOmlQ==";
       
+      if (!OperatingSystem.IsWindows())
+        Assert.Inconclusive("This test requires Windows environment");
+      
       var tempDataFile = Path.GetTempFileName();
       try
       {
