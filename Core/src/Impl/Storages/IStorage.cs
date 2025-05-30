@@ -6,7 +6,7 @@ using JetBrains.Annotations;
 
 namespace JetBrains.SymbolStorage.Impl.Storages
 {
-  internal interface IStorage
+  internal interface IStorage : IDisposable
   {
     Task<bool> ExistsAsync([NotNull] string file);
     Task DeleteAsync([NotNull] string file);

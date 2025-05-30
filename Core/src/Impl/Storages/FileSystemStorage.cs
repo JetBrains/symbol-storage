@@ -182,5 +182,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         dir = Path.GetDirectoryName(dir) ?? "";
       }
     }
+
+    public void Dispose()
+    {
+    }
   }
 }
