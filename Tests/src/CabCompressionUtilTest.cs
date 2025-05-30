@@ -13,7 +13,7 @@ namespace JetBrains.SymbolStorage.Tests
   public class CabCompressionUtilTest
   {
     [TestMethod]
-    public void ValidatedCompressedFileByHash()
+    public void CabArchiveFileHasExpectedHashsum()
     {
       // Hash calculated for the file, created with originally used lib (MSFTCompressionCab)
       const string expectedSha512HashAsBase64 = "iQ8UcZWf7wQ+Mwoiec4D9N6i9mE4ZdV6QzNBJv7XsJprzDvgofwIGG7pPgpfbzhUCk1OVxxD3ce4CZr8dKOmlQ==";

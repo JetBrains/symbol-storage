@@ -267,5 +267,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     private static bool IsNotDataJsonFile([NotNull] S3Object s3Object) => s3Object.Key != ".data.json";
     private static bool IsDirectory([NotNull] S3Object s3Object) => s3Object.Key.EndsWith('/') && s3Object.Size == 0;
     private static bool IsUserFile([NotNull] S3Object s3Object) => !IsDirectory(s3Object) && IsNotDataJsonFile(s3Object);
+
+    public void Dispose()
+    {
+      myS3Client.Dispose();
+      myCloudFrontClient.Dispose();
+    }
   }
 }
