@@ -37,9 +37,9 @@ namespace JetBrains.SymbolStorage.Tests
         string actualCabFileHash;
         try
         {
-          CabCompressionUtil.CompressFiles(tempCabArchiveFile, [
+          CabCompressionUtil.CompressFile(tempCabArchiveFile, 
             new CompressionFileInfo("aaa.pdb", tempDataFile)
-          ]);
+          );
           
           using (var compressedStream = File.OpenRead(tempCabArchiveFile))
           using (var shaAlg = SHA512.Create())
