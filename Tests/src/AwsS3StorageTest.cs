@@ -43,7 +43,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task PutDataToStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.PathSeparator}file_{Guid.NewGuid():N}.txt";
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -58,7 +58,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task GetDataFromStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.PathSeparator}file_{Guid.NewGuid():N}.txt";
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -70,6 +70,208 @@ namespace JetBrains.SymbolStorage.Tests
         });
         
         Assert.IsTrue(OurTestData.SequenceEqual(memoryStream.ToArray()));
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+      }
+    }
+    
+    [TestMethod]
+    public async Task GetDataLengthFromStorageTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+
+        Assert.AreEqual(OurTestData.Length, await client.GetLengthAsync(recordName));
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+      }
+
+      await Assert.ThrowsAsync<Exception>(async () =>
+      {
+        _ = await client.GetLengthAsync(recordName);
+      });
+    }
+    
+    [TestMethod]
+    public async Task ExistsInStorageTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        Assert.IsFalse(await client.ExistsAsync(recordName));
+        
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+
+        Assert.IsTrue(await client.ExistsAsync(recordName));
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+        Assert.IsFalse(await client.ExistsAsync(recordName));
+      }
+    }
+    
+    [TestMethod] public async Task DeleteDataFromStorageTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        Assert.IsFalse(await client.ExistsAsync(recordName));
+        await client.DeleteAsync(recordName); // Expecting that it is fine to delete non-existed record
+        
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+        Assert.IsTrue(await client.ExistsAsync(recordName));
+        
+        await client.DeleteAsync(recordName);
+        Assert.IsFalse(await client.ExistsAsync(recordName));
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+      }
+    }
+    
+    [TestMethod]
+    public async Task RenameInStorageTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var renamedRecordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        Assert.IsFalse(await client.ExistsAsync(recordName));
+        Assert.IsFalse(await client.ExistsAsync(renamedRecordName));
+        
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+
+        Assert.IsTrue(await client.ExistsAsync(recordName));
+        Assert.IsFalse(await client.ExistsAsync(renamedRecordName));
+
+        await client.RenameAsync(recordName, renamedRecordName, AccessMode.Public);
+        
+        Assert.IsFalse(await client.ExistsAsync(recordName));
+        Assert.IsTrue(await client.ExistsAsync(renamedRecordName));
+        
+        var memoryStream = new MemoryStream();
+        await client.OpenForReadingAsync(renamedRecordName, async stream =>
+        {
+          await stream.CopyToAsync(memoryStream);
+        });
+        
+        Assert.IsTrue(OurTestData.SequenceEqual(memoryStream.ToArray()));
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+        await client.DeleteAsync(renamedRecordName);
+      }
+    }
+    
+    [TestMethod]
+    public async Task AccessModeOperationsTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+
+        var mode = await client.GetAccessModeAsync(recordName);
+        Assert.AreEqual(AccessMode.Public, mode);
+
+        await client.SetAccessModeAsync(recordName, AccessMode.Private);
+        
+        mode = await client.GetAccessModeAsync(recordName);
+        Assert.AreEqual(AccessMode.Private, mode);
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+      }
+    }
+    
+    [TestMethod]
+    public async Task IsEmptyBucketTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var recordName = $"test_path_{Guid.NewGuid():N}{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+
+        // Because S3 bucket is shared, it can be non-empty at the beginning of the test
+        Assert.IsFalse(await client.IsEmptyAsync());
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+      }
+    }
+    
+    [TestMethod]
+    public async Task GetChildrenTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var directoryName = $"test_path_{Guid.NewGuid():N}";
+      var recordName = $"{directoryName}{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var record2Name = $"{directoryName}{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordInOtherDirName = $"{directoryName}_2{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+        await client.CreateForWritingAsync(record2Name, AccessMode.Public, new MemoryStream(OurTestData, false));
+        await client.CreateForWritingAsync(recordInOtherDirName, AccessMode.Public, new MemoryStream(OurTestData, false));
+
+        var files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directoryName)).ToListAsync();
+        Assert.AreEqual(2, files.Count);
+        
+        Assert.IsTrue(files.Any(f => f.Name == recordName));
+        Assert.IsTrue(files.Any(f => f.Name == record2Name));
+        Assert.IsTrue(files.All(f => f.Size == OurTestData.Length));
+        
+        
+        files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directoryName + "_2")).ToListAsync();
+        Assert.AreEqual(1, files.Count);
+        
+        Assert.IsTrue(files.Any(f => f.Name == recordInOtherDirName));
+        Assert.IsTrue(files.All(f => f.Size == OurTestData.Length));
+        
+        
+        files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directoryName + "_3")).ToListAsync();
+        Assert.AreEqual(0, files.Count);
+        
+        
+        var fullCount = await (client.GetChildrenAsync(ChildrenMode.WithSize, null)).CountAsync();
+        Assert.IsTrue(fullCount >= 3); // Because S3 bucket is shared, it can be non-empty at the beginning of the test
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+        await client.DeleteAsync(record2Name);
+        await client.DeleteAsync(recordInOtherDirName);
+      }
+    }
+    
+    [TestMethod]
+    public async Task InvalidateRecordsInCacheTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var directory = $"test_path_{Guid.NewGuid():N}";
+      var recordName = $"directory{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+
+        await client.InvalidateExternalServicesAsync([directory + Path.DirectorySeparatorChar + "*"]);
       }
       finally
       {

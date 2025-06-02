@@ -204,6 +204,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         BucketName = myBucketName,
         MaxKeys = 2,
       });
+      
+      // According to the tests, `ListObjectsV2Async` returns null in `response.S3Objects` when no keys found
+      if (response.S3Objects == null)
+        return true;
+      
       return !response.S3Objects.Where(IsNotDataJsonFile).Any();
     }
 
@@ -212,13 +217,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       var request = new ListObjectsV2Request()
       {
         BucketName = myBucketName,
-        Prefix = string.IsNullOrEmpty(prefixDir) ? null : prefixDir.NormalizeLinux() + '/'
+        Prefix = string.IsNullOrEmpty(prefixDir) ? null : prefixDir.NormalizeLinux() + "/"
       };
       
       bool isCompleted = false;
       while (!isCompleted)
       {
         var response = await myS3Client.ListObjectsV2Async(request);
+        // According to the tests, `ListObjectsV2Async` returns null in `response.S3Objects` when no keys found
+        if (response.S3Objects == null)
+          break;
+        
         foreach (var s3Object in response.S3Objects.Where(IsUserFile))
         {
           yield return new ChildrenItem
@@ -239,7 +248,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {
         var items = fileMasks != null
-          ? fileMasks.Select(x => '/' + x.CheckSystemFile().NormalizeLinux()).ToList()
+          ? fileMasks.Select(x => "/" + x.CheckSystemFile().NormalizeLinux()).ToList()
           : new List<string> { "/*" };
         if (items.Count > 0)
         {
