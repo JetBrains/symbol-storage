@@ -140,7 +140,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return !Directory.EnumerateFileSystemEntries(myRootDir).Any();
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, [NotNull] string prefixDir)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, [CanBeNull] string prefixDir = null)
     {
       await Task.Yield();
       var stack = new Stack<string>();
@@ -163,7 +163,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task InvalidateExternalServicesAsync(IEnumerable<string> fileMasks)
+    public Task InvalidateExternalServicesAsync([CanBeNull] IEnumerable<string> fileMasks = null)
     {
       if (fileMasks != null)
         foreach (var key in fileMasks)

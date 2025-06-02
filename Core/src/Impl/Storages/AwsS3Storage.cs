@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -18,17 +20,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
   {
     private const string AwsS3GroupUriAllUsers = "http://acs.amazonaws.com/groups/global/AllUsers";
     private readonly string myBucketName;
-    private readonly string myCloudFrontDistributionId;
+    private readonly string? myCloudFrontDistributionId;
     private readonly AmazonS3Client myS3Client;
     private readonly AmazonCloudFrontClient myCloudFrontClient;
     private readonly bool mySupportAcl;
 
     public AwsS3Storage(
-      [NotNull] string accessKey,
-      [NotNull] string secretKey,
-      [NotNull] string bucketName,
-      [NotNull] string region,
-      [CanBeNull] string cloudFrontDistributionId = null,
+      string accessKey,
+      string secretKey,
+      string bucketName,
+      string region,
+      string? cloudFrontDistributionId = null,
       bool supportAcl = true)
     {
       var regionEndpoint = RegionEndpoint.GetBySystemName(region);
@@ -148,8 +150,6 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task<TResult> OpenForReadingAsync<TResult>(string file, Func<Stream, Task<TResult>> func)
     {
-      if (func == null)
-        throw new ArgumentNullException(nameof(func));
       var key = file.CheckSystemFile().NormalizeLinux();
       using var response = await myS3Client.GetObjectAsync(new GetObjectRequest
         {
@@ -167,8 +167,6 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task CreateForWritingAsync(string file, AccessMode mode, Stream stream)
     {
-      if (stream == null)
-        throw new ArgumentNullException(nameof(stream));
       if (!stream.CanSeek)
         throw new ArgumentException("The stream should support the seek operation", nameof(stream));
       var key = file.CheckSystemFile().NormalizeLinux();
@@ -212,7 +210,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return !response.S3Objects.Where(IsNotDataJsonFile).Any();
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, string prefixDir)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, string? prefixDir = null)
     {
       var request = new ListObjectsV2Request()
       {
@@ -243,7 +241,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task InvalidateExternalServicesAsync(IEnumerable<string> fileMasks = null)
+    public async Task InvalidateExternalServicesAsync(IEnumerable<string>? fileMasks = null)
     {
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {
@@ -264,18 +262,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         }
       }
     }
-
-    [CanBeNull]
-    private static S3CannedACL GetS3CannedAcl(AccessMode mode, bool supportAcl) => mode switch
+    
+    private static S3CannedACL? GetS3CannedAcl(AccessMode mode, bool supportAcl) => mode switch
       {
         AccessMode.Private => supportAcl ? S3CannedACL.Private : null,
         AccessMode.Public => supportAcl ? S3CannedACL.PublicRead : null,
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, $"Unknown {nameof(AccessMode)} value")
       };
 
-    private static bool IsNotDataJsonFile([NotNull] S3Object s3Object) => s3Object.Key != ".data.json";
-    private static bool IsDirectory([NotNull] S3Object s3Object) => s3Object.Key.EndsWith('/') && s3Object.Size == 0;
-    private static bool IsUserFile([NotNull] S3Object s3Object) => !IsDirectory(s3Object) && IsNotDataJsonFile(s3Object);
+    private static bool IsNotDataJsonFile(S3Object s3Object) => s3Object.Key != ".data.json";
+    private static bool IsDirectory(S3Object s3Object) => s3Object.Key.EndsWith('/') && s3Object.Size == 0;
+    private static bool IsUserFile(S3Object s3Object) => !IsDirectory(s3Object) && IsNotDataJsonFile(s3Object);
 
     public void Dispose()
     {
