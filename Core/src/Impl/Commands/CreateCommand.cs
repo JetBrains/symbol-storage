@@ -135,9 +135,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var tempFile = Path.GetTempFileName();
       try
       {
-        CabCompressionUtil.CompressFiles(tempFile, [
+        CabCompressionUtil.CompressFile(tempFile, 
           new CompressionFileInfo(filePathInArchive, sourceFile)
-        ]);
+        );
         
         await using var stream = File.Open(tempFile, FileMode.Open, FileAccess.Read);
         await writeStorageFile(stream);
