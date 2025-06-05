@@ -1,76 +1,65 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 
 namespace JetBrains.SymbolStorage.Impl
 {
   internal static class AsyncUtil
   {
     public static Task ParallelFor<TSource>(
-      [NotNull] this IEnumerable<TSource> sources,
+      this IEnumerable<TSource> sources,
       int degreeOfParallelism,
-      [NotNull] Func<TSource, Task> func) => sources.ParallelFor(degreeOfParallelism, async x =>
+      Func<TSource, Task> func)
+    {
+      return Parallel.ForEachAsync(sources, new ParallelOptions() { MaxDegreeOfParallelism = degreeOfParallelism }, (x, _) => new ValueTask(func(x)));
+    }
+
+    public static async Task<List<TResult>> ParallelFor<TSource, TResult>(
+      this IEnumerable<TSource> sources,
+      int degreeOfParallelism,
+      Func<TSource, Task<TResult>> func)
+    {
+      var results = sources.TryGetNonEnumeratedCount(out var expectedCount) ? new List<TResult>(expectedCount) : new List<TResult>();
+      var lockObj = new Lock();
+      
+      await Parallel.ForEachAsync(sources, new ParallelOptions() { MaxDegreeOfParallelism = degreeOfParallelism }, async (x, _) =>
       {
-        await func(x);
-        return true;
+        var result = await func(x);
+        lock (lockObj)
+          results.Add(result);
       });
 
-    public static async Task<IReadOnlyCollection<TResult>> ParallelFor<TSource, TResult>(
-      [NotNull] this IEnumerable<TSource> sources,
-      int degreeOfParallelism,
-      [NotNull] Func<TSource, Task<TResult>> func)
-    {
-      if (sources == null) throw new ArgumentNullException(nameof(sources));
-      if (func == null) throw new ArgumentNullException(nameof(func));
-      using var semaphore = new SemaphoreSlim(degreeOfParallelism);
-      var semaphore1 = semaphore;
-      return await Task.WhenAll(sources.Select(async source =>
-        {
-          await semaphore1.WaitAsync();
-          try
-          {
-            return await func(source);
-          }
-          finally
-          {
-            semaphore1.Release();
-          }
-        }));
+      return results;
     }
 
     public static Task ParallelFor<TSource>(
-      [NotNull] this IAsyncEnumerable<TSource> sources,
+      this IAsyncEnumerable<TSource> sources,
       int degreeOfParallelism,
-      [NotNull] Func<TSource, Task> func) => sources.ParallelFor(degreeOfParallelism, async x =>
+      Func<TSource, Task> func)
+    {
+      return Parallel.ForEachAsync(sources, new ParallelOptions() { MaxDegreeOfParallelism = degreeOfParallelism }, (x, _) => new ValueTask(func(x)));
+    }
+
+    public static async Task<List<TResult>> ParallelFor<TSource, TResult>(
+      this IAsyncEnumerable<TSource> sources,
+      int degreeOfParallelism,
+      Func<TSource, Task<TResult>> func)
+    {
+      var results = new List<TResult>();
+      var lockObj = new Lock();
+      
+      await Parallel.ForEachAsync(sources, new ParallelOptions() { MaxDegreeOfParallelism = degreeOfParallelism }, async (x, _) =>
       {
-        await func(x);
-        return true;
+        var result = await func(x);
+        lock (lockObj)
+          results.Add(result);
       });
 
-    public static async Task<IReadOnlyCollection<TResult>> ParallelFor<TSource, TResult>(
-      [NotNull] this IAsyncEnumerable<TSource> sources,
-      int degreeOfParallelism,
-      [NotNull] Func<TSource, Task<TResult>> func)
-    {
-      if (sources == null) throw new ArgumentNullException(nameof(sources));
-      if (func == null) throw new ArgumentNullException(nameof(func));
-      using var semaphore = new SemaphoreSlim(degreeOfParallelism);
-      var semaphore1 = semaphore;
-      return await Task.WhenAll(await sources.Select(async source =>
-        {
-          await semaphore1.WaitAsync();
-          try
-          {
-            return await func(source);
-          }
-          finally
-          {
-            semaphore1.Release();
-          }
-        }).ToListAsync());
+      return results;
     }
   }
 }
