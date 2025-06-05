@@ -63,7 +63,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     {
       if (storage == null)
         throw new ArgumentNullException(nameof(storage));
-      return await storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory).ParallelFor(degreeOfParallelism, async item =>
+      return await storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory).ParallelForAsync(degreeOfParallelism, async item =>
         {
           var file = item.Name;
           progress?.Invoke(file);
