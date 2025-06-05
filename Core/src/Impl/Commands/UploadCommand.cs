@@ -71,7 +71,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           ILogger logger = new LoggerWithStatistics(myLogger, statistics);
 
           long existFiles = 0;
-          await srcFiles.ParallelFor(myDegreeOfParallelism, async srcFile =>
+          await srcFiles.ParallelForAsync(myDegreeOfParallelism, async srcFile =>
             {
               logger.Verbose($"  Checking {srcFile}");
               var hash = SHA256.Create();
@@ -109,7 +109,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         {
           myLogger.Info($"[{DateTime.Now:s}] Uploading...");
           long totalSize = 0;
-          await uploadFiles.ParallelFor(myDegreeOfParallelism, async item =>
+          await uploadFiles.ParallelForAsync(myDegreeOfParallelism, async item =>
             {
               var (srcFile, dstFile) = item;
               myLogger.Info($"  Uploading {srcFile}");

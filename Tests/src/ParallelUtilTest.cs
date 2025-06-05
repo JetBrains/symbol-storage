@@ -9,12 +9,21 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace JetBrains.SymbolStorage.Tests
 {
   [TestClass]
-  public class AsyncUtilTest
+  public class ParallelUtilTest
   {
     [TestMethod]
-    public async Task ForEachOnEnumerableWithResultProcessesAllItems()
+    public void ForEachOnEnumerableWithResultProcessesAllItems()
     {
-      var result = await Enumerable.Range(0, 10000).ParallelFor(Math.Max(2, Environment.ProcessorCount), async data =>
+      var result = Enumerable.Range(0, 10000).ParallelFor(Math.Max(2, Environment.ProcessorCount), data => data);
+      
+      result.Sort();
+      Assert.IsTrue(result.SequenceEqual(Enumerable.Range(0, 10000)));
+    }
+    
+    [TestMethod]
+    public async Task ForEachAsyncOnEnumerableWithResultProcessesAllItems()
+    {
+      var result = await Enumerable.Range(0, 10000).ParallelForAsync(Math.Max(2, Environment.ProcessorCount), async data =>
       {
         await Task.Yield();
         return data;
@@ -25,11 +34,11 @@ namespace JetBrains.SymbolStorage.Tests
     }
     
     [TestMethod]
-    public async Task ForEachOnEnumerableWithoutResultProcessesAllItems()
+    public async Task ForEachAsyncOnEnumerableWithoutResultProcessesAllItems()
     {
       var result = new List<int>();
       var lockObj = new Lock();
-      await Enumerable.Range(0, 10000).ParallelFor(Math.Max(2, Environment.ProcessorCount), async data =>
+      await Enumerable.Range(0, 10000).ParallelForAsync(Math.Max(2, Environment.ProcessorCount), async data =>
       {
         await Task.Yield();
         lock (lockObj)
@@ -41,13 +50,13 @@ namespace JetBrains.SymbolStorage.Tests
     }
     
     [TestMethod]
-    public async Task ForEachOnAsyncEnumerableWithResultProcessesAllItems()
+    public async Task ForEachAsyncOnAsyncEnumerableWithResultProcessesAllItems()
     {
       var result = await Enumerable.Range(0, 10000).ToAsyncEnumerable().SelectAwait(async val => 
       {
         await Task.Yield();
         return val;
-      }).ParallelFor(Math.Max(2, Environment.ProcessorCount), async data =>
+      }).ParallelForAsync(Math.Max(2, Environment.ProcessorCount), async data =>
       {
         await Task.Yield();
         return data;
@@ -58,7 +67,7 @@ namespace JetBrains.SymbolStorage.Tests
     }
     
     [TestMethod]
-    public async Task ForEachOnAsyncEnumerableWithoutResultProcessesAllItems()
+    public async Task ForEachAsyncOnAsyncEnumerableWithoutResultProcessesAllItems()
     {
       var result = new List<int>();
       var lockObj = new Lock();
@@ -66,7 +75,7 @@ namespace JetBrains.SymbolStorage.Tests
       {
         await Task.Yield();
         return val;
-      }).ParallelFor(Math.Max(2, Environment.ProcessorCount), async data =>
+      }).ParallelForAsync(Math.Max(2, Environment.ProcessorCount), async data =>
       {
         await Task.Yield();
         lock (lockObj)
