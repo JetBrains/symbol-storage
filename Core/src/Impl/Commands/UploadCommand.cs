@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
@@ -22,10 +22,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly int myDegreeOfParallelism;
 
     public UploadCommand(
-      [NotNull] ILogger logger,
-      [NotNull] IStorage storage,
+      ILogger logger,
+      IStorage storage,
       int degreeOfParallelism,
-      [NotNull] string source,
+      string source,
       StorageFormat newStorageFormat)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -37,9 +37,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      var srcStorage = (IStorage) new FileSystemStorage(mySource);
+      using var srcStorage = new FileSystemStorage(mySource);
 
-      IReadOnlyCollection<string> srcFiles;
+      List<string> srcFiles;
       {
         var validator = new Validator(myLogger, srcStorage, "Source");
         var srcStorageFormat = await validator.ValidateStorageMarkersAsync();
@@ -55,8 +55,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           myLogger.Error("Found some issues in source storage, uploading was interrupted");
           return 1;
         }
-
-        srcFiles = tagItems.Select(x => x.Key).Concat(files).ToList();
+        
+        srcFiles = new List<string>(tagItems.Count + files.Count);
+        srcFiles.AddRange(tagItems.Select(x => x.Key));
+        srcFiles.AddRange(files);
       }
 
       var dstValidator = new Validator(myLogger, myStorage, "Destination");
@@ -64,7 +66,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
       {
         myLogger.Info($"[{DateTime.Now:s}] Checking file compatibility...");
-        var uploadFiles = new ConcurrentBag<Tuple<string, string>>();
+        var uploadFiles = new List<(string src, string dst)>(srcFiles.Count);
+        var uploadFilesSync = new Lock();
 
         {
           var statistics = new Statistics();
@@ -74,19 +77,36 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           await srcFiles.ParallelForAsync(myDegreeOfParallelism, async srcFile =>
             {
               logger.Verbose($"  Checking {srcFile}");
-              var hash = SHA256.Create();
-              var dstFile = TagUtil.IsDataFile(srcFile) && srcFile.ValidateAndFixDataPath(dstStorageFormat, out var fixedFile) == PathUtil.ValidateAndFixErrors.CanBeFixed
-                ? fixedFile
-                : srcFile;
+              var dstFile = srcFile;
+              if (TagUtil.IsDataFile(srcFile))
+              {
+                switch (srcFile.ValidateAndFixDataPath(dstStorageFormat, out var fixedFile))
+                {
+                  case PathUtil.ValidateAndFixErrors.Ok:
+                    break;
+                  case PathUtil.ValidateAndFixErrors.CanBeFixed:
+                    dstFile = fixedFile;
+                    break;
+                  case PathUtil.ValidateAndFixErrors.Error:
+                    logger.Error($"The source file name ({srcFile}) cannot be translated to the destination storage file format");
+                    return;
+                  default:
+                    throw new InvalidOperationException("Unknown ValidateAndFixErrors value");
+                }
+              }
+              
               if (await myStorage.ExistsAsync(dstFile))
               {
                 Interlocked.Increment(ref existFiles);
                 var dstLen = await myStorage.GetLengthAsync(dstFile);
                 var srcLen = await srcStorage.GetLengthAsync(srcFile);
                 if (srcLen != dstLen)
+                {
                   logger.Error($"The file {srcFile} length {srcLen} differs then the destination length {dstLen}");
+                }
                 else
                 {
+                  using var hash = SHA256.Create();
                   var dstHash = await myStorage.OpenForReadingAsync(dstFile, stream => hash.ComputeHashAsync(stream));
                   var srcHash = await srcStorage.OpenForReadingAsync(srcFile, stream => hash.ComputeHashAsync(stream));
                   if (!srcHash.SequenceEqual(dstHash))
@@ -94,7 +114,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
                 }
               }
               else
-                uploadFiles.Add(Tuple.Create(srcFile, dstFile));
+              {
+                lock (uploadFilesSync)
+                  uploadFiles.Add((srcFile, dstFile));
+              }
             });
 
           myLogger.Info($"[{DateTime.Now:s}] Done with compatibility (new files: {uploadFiles.Count}, same files: {existFiles}, warnings: {statistics.Warnings}, errors: {statistics.Errors})");
@@ -104,20 +127,20 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             return 1;
           }
         }
-
+        
         if (uploadFiles.Count > 0)
         {
           myLogger.Info($"[{DateTime.Now:s}] Uploading...");
           long totalSize = 0;
           await uploadFiles.ParallelForAsync(myDegreeOfParallelism, async item =>
-            {
-              var (srcFile, dstFile) = item;
-              myLogger.Info($"  Uploading {srcFile}");
-              await using var memoryStream = new MemoryStream();
-              await srcStorage.OpenForReadingAsync(srcFile, stream => stream.CopyToAsync(memoryStream));
-              await myStorage.CreateForWritingAsync(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream);
-              Interlocked.Add(ref totalSize, memoryStream.Length);
-            });
+          {
+            var (srcFile, dstFile) = item;
+            myLogger.Info($"  Uploading {srcFile}");
+            using var memoryStream = new MemoryStream();
+            await srcStorage.OpenForReadingAsync(srcFile, stream => stream.CopyToAsync(memoryStream));
+            await myStorage.CreateForWritingAsync(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream);
+            Interlocked.Add(ref totalSize, memoryStream.Length);
+          });
 
           await myStorage.InvalidateExternalServicesAsync();
           myLogger.Info($"[{DateTime.Now:s}] Done with uploading (size: {totalSize.ToKibibyte()}, files: {uploadFiles.Count})");

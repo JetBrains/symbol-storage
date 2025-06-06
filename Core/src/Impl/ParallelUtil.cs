@@ -18,7 +18,7 @@ namespace JetBrains.SymbolStorage.Impl
       var results = sources.TryGetNonEnumeratedCount(out var expectedCount) ? new List<TResult>(expectedCount) : new List<TResult>();
       var lockObj = new Lock();
       
-      Parallel.ForEach(sources, new ParallelOptions() { MaxDegreeOfParallelism = degreeOfParallelism }, async (x, _) =>
+      Parallel.ForEach(sources, new ParallelOptions() { MaxDegreeOfParallelism = degreeOfParallelism }, (x, _) =>
       {
         var result = func(x);
         lock (lockObj)

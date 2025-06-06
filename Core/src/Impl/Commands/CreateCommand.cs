@@ -1,10 +1,12 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
@@ -27,18 +29,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly bool myIsProtected;
 
     public CreateCommand(
-      [NotNull] ILogger logger,
-      [NotNull] IStorage storage,
+      ILogger logger,
+      IStorage storage,
       int degreeOfParallelism,
       StorageFormat expectedStorageFormat,
-      [NotNull] string toolId,
-      [NotNull] Identity identity,
+      string toolId,
+      Identity identity,
       bool isProtected,
       bool isCompressPe,
       bool isCompressWPdb,
       bool isKeepNonCompressed,
-      [NotNull] IEnumerable<KeyValuePair<string, string>> properties,
-      [NotNull] IReadOnlyCollection<string> sources)
+      IEnumerable<KeyValuePair<string, string>> properties,
+      IReadOnlyCollection<string> sources)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -81,16 +83,22 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         return 1;
       }
 
-      await WriteTag(dstFiles.Select(x => Path.GetDirectoryName(x.Key)));
+      await WriteTag(dstFiles.Select(x =>
+      {
+        var dir = Path.GetDirectoryName(x.Key);
+        Debug.Assert(dir != null);
+        return dir;
+      }));
+      
       await myStorage.InvalidateExternalServicesAsync();
       return 0;
     }
 
-    private async Task WriteTag([NotNull] IEnumerable<string> dirs)
+    private async Task WriteTag(IEnumerable<string> dirs)
     {
       myLogger.Info($"[{DateTime.Now:s}] Writing tag file...");
       var fileId = Guid.NewGuid();
-      await using var stream = new MemoryStream();
+      using var stream = new MemoryStream();
       await TagUtil.WriteTagScriptAsync(new Tag
         {
           ToolId = myToolId,
@@ -111,17 +119,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     }
 
     private static async Task WriteData(
-      [NotNull] string sourceFile,
-      [NotNull] Func<Stream, Task> writeStorageFile)
+      string sourceFile,
+      Func<Stream, Task> writeStorageFile)
     {
       await using var stream = File.OpenRead(sourceFile);
       await writeStorageFile(stream);
     }
 
     private static async Task WriteDataPacked(
-      [NotNull] string sourceFile,
-      [NotNull] string packedStorageRelativeFile,
-      [NotNull] Func<Stream, Task> writeStorageFile)
+      string sourceFile,
+      string packedStorageRelativeFile,
+      Func<Stream, Task> writeStorageFile)
     {
       CabCompressionUtil.VerifyPlatformSupported();
       
