@@ -47,7 +47,7 @@ namespace JetBrains.SymbolStorage
         commandLine.VersionOption("--version", () => toolVersion);
 
         var dirOption = commandLine.Option("-d|--directory", "The local directory with symbol server storage.", CommandOptionType.SingleValue);
-        var awsS3BucketNameOption = commandLine.Option("-a|--aws-s3", $"The AWS S3 bucket with symbol server storage. The access and private keys will be asked in console. Use {AccessUtil.AwsS3AccessKeyEnvironmentVariable}, {AccessUtil.AwsS3SecretKeyEnvironmentVariable} and {AccessUtil.AwsCloudFrontDistributionIdEnvironmentVariable} environment variables for unattended mode.", CommandOptionType.SingleValue);
+        var awsS3BucketNameOption = commandLine.Option("-a|--aws-s3", $"The AWS S3 bucket with symbol server storage. The access and private keys will be asked in console. Use {AccessUtil.AwsS3AccessKeyEnvironmentVariable}, {AccessUtil.AwsS3SecretKeyEnvironmentVariable}, {AccessUtil.AwsS3SessionTokenEnvironmentVariable} (optional, '_' = no value) and {AccessUtil.AwsCloudFrontDistributionIdEnvironmentVariable} (optional, '_' = no value) environment variables for unattended mode.", CommandOptionType.SingleValue);
         var awsS3RegionEndpointOption = commandLine.Option("-ar|--aws-s3-region", $"The AWS S3 region endpoint with symbol server storage. Default is {AccessUtil.DefaultAwsS3RegionEndpoint}.", CommandOptionType.SingleValue);
         var degreeOfParallelismOption = commandLine.Option("-t|--tasks", $"Execute task count in parallel. Default is the processor count ({AccessUtil.DefaultDegreeOfParallelism} for now).", CommandOptionType.SingleValue);
         var verboseOption = commandLine.Option("-v|--verbose", "Verbose mode.", CommandOptionType.NoValue);
