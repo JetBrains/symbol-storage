@@ -235,9 +235,10 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           };
         }
 
-        request.ContinuationToken = response.ContinuationToken;
+        request.ContinuationToken = response.NextContinuationToken;
         Debug.Assert(response.IsTruncated.HasValue, "Unexpected null value of IsTruncated property. It should always be specified");
         isCompleted = !(response.IsTruncated ?? false);
+        Debug.Assert(isCompleted || response.NextContinuationToken != null, "Continuation token should be provided when there is more data in the storage");
       }
     }
 
