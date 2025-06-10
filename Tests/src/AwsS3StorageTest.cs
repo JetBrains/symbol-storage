@@ -146,6 +146,37 @@ namespace JetBrains.SymbolStorage.Tests
     }
     
     [TestMethod]
+    public async Task PutOverwritesDataInStorageTest()
+    {
+      using var client = CreateAwsStorageClient();
+      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      try
+      {
+        Assert.IsFalse(await client.ExistsAsync(recordName));
+        
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
+        Assert.IsTrue(await client.ExistsAsync(recordName));
+        
+        var modifiedTestData = OurTestData.ToArray();
+        modifiedTestData[0] = unchecked((byte)(modifiedTestData[0] + 1));
+        await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(modifiedTestData, false));
+        Assert.IsTrue(await client.ExistsAsync(recordName));
+        
+        var memoryStream = new MemoryStream();
+        await client.OpenForReadingAsync(recordName, async stream =>
+        {
+          await stream.CopyToAsync(memoryStream);
+        });
+        
+        Assert.IsTrue(modifiedTestData.SequenceEqual(memoryStream.ToArray()));
+      }
+      finally
+      {
+        await client.DeleteAsync(recordName);
+      }
+    }
+    
+    [TestMethod]
     public async Task RenameInStorageTest()
     {
       using var client = CreateAwsStorageClient();
