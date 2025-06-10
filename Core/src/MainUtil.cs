@@ -158,13 +158,19 @@ namespace JetBrains.SymbolStorage
             x.HelpOption("-h|--help");
             x.Description = "Upload one storage to another one with the source storage inconsistency check";
             var sourceOption = x.Option("-s|--source", "Source storage directory.", CommandOptionType.SingleValue);
+            var collisionResolutionMode = x.Option("-crm|--collision-resolution", $"Collision resolution mode: {CollisionResolutionMode.Terminate} (default), {CollisionResolutionMode.KeepExisted}, {CollisionResolutionMode.Overwrite}, {CollisionResolutionMode.OverwriteWithoutBackup}.", CommandOptionType.SingleValue);
+            var peCollisionResolutionMode = x.Option("-crmpe|--collision-resolution-pe", $"Collision resolution mode override for PE weak hash: {CollisionResolutionMode.Terminate}, {CollisionResolutionMode.KeepExisted}, {CollisionResolutionMode.Overwrite}, {CollisionResolutionMode.OverwriteWithoutBackup}.", CommandOptionType.SingleValue);
+            var backupStorage = x.Option("-bckp|--backup-directory", "Directory to store backup in case of collisions", CommandOptionType.SingleValue);
             StorageOptions(x, out var newStorageFormatOption);
             x.OnExecute(() => new UploadCommand(
               new ConsoleLogger(verboseOption.HasValue()),
               AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
               AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
               sourceOption.Value(),
-              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).ExecuteAsync());
+              AccessUtil.GetStorageFormat(newStorageFormatOption.Value()),
+              collisionResolutionMode: AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value()),
+              peCollisionResolutionMode: AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value())),
+              backupStorage: backupStorage.Value()).ExecuteAsync());
           });
 
         commandLine.Command("create", x =>
@@ -176,6 +182,9 @@ namespace JetBrains.SymbolStorage
             var keepNonCompressedOption = x.Option("-k|--keep-non-compressed", "Store also non-compressed version in storage.", CommandOptionType.NoValue);
             var propertiesOption = x.Option("-p|--property", "The property to be stored in metadata in following format: <key1>=<value1>[,<key2>=<value2>[,...]]. Can be declared many times.", CommandOptionType.MultipleValue);
             var protectedOption = x.Option("-r|--protected", "Protect files form deletion.", CommandOptionType.NoValue);
+            var collisionResolutionMode = x.Option("-crm|--collision-resolution", $"Collision resolution mode: {CollisionResolutionMode.Terminate} (default), {CollisionResolutionMode.KeepExisted}, {CollisionResolutionMode.Overwrite}, {CollisionResolutionMode.OverwriteWithoutBackup}.", CommandOptionType.SingleValue);
+            var peCollisionResolutionMode = x.Option("-crmpe|--collision-resolution-pe", $"Collision resolution mode override for PE weak hash: {CollisionResolutionMode.Terminate}, {CollisionResolutionMode.KeepExisted}, {CollisionResolutionMode.Overwrite}, {CollisionResolutionMode.OverwriteWithoutBackup}.", CommandOptionType.SingleValue);
+            var backupStorage = x.Option("-bckp|--backup-directory", "Directory to store backup in case of collisions", CommandOptionType.SingleValue);
             StorageOptions(x, out var newStorageFormatOption);
             var productArgument = x.Argument("product", "The product name.");
             var versionArgument = x.Argument("version", "The product version.");
@@ -189,6 +198,11 @@ namespace JetBrains.SymbolStorage
                 var tempDir = Path.Combine(Path.GetTempPath(), "storage_" + Guid.NewGuid().ToString("D"));
                 ILogger logger = new ConsoleLogger(verboseOption.HasValue());
                 var degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+                var parsedCollisionResolutionMode = AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value());
+                var parsedPeCollisionResolutionMode = AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), parsedCollisionResolutionMode);
+                if ((parsedCollisionResolutionMode == CollisionResolutionMode.Overwrite || parsedPeCollisionResolutionMode == CollisionResolutionMode.Overwrite) && !backupStorage.HasValue())
+                  throw new ArgumentException("Backup directory must be specified when collision resolution mode is 'overwrite'");
+                
                 try
                 {
                   var res = await new CreateCommand(
@@ -214,7 +228,10 @@ namespace JetBrains.SymbolStorage
                     storage,
                     degreeOfParallelism,
                     tempDir,
-                    newStorageFormat).ExecuteAsync();
+                    newStorageFormat,
+                    parsedCollisionResolutionMode,
+                    parsedPeCollisionResolutionMode,
+                    backupStorage.Value()).ExecuteAsync();
                 }
                 finally
                 {
