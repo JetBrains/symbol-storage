@@ -19,6 +19,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly string mySource;
     private readonly StorageFormat myNewStorageFormat;
     private readonly IStorage myStorage;
+    private readonly CollisionResolutionMode myCollisionResolutionMode;
+    private readonly CollisionResolutionMode myPeCollisionResolutionMode;
+    private readonly string? myBackupStorage;
     private readonly int myDegreeOfParallelism;
 
     public UploadCommand(
@@ -26,13 +29,22 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       IStorage storage,
       int degreeOfParallelism,
       string source,
-      StorageFormat newStorageFormat)
+      StorageFormat newStorageFormat,
+      CollisionResolutionMode collisionResolutionMode,
+      CollisionResolutionMode peCollisionResolutionMode,
+      string? backupStorage)
     {
+      if ((collisionResolutionMode == CollisionResolutionMode.Overwrite || peCollisionResolutionMode == CollisionResolutionMode.Overwrite) && string.IsNullOrEmpty(backupStorage))
+        throw new ArgumentException("Backup storage must be specified when collision resolution mode is 'overwrite'");
+      
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
       myDegreeOfParallelism = degreeOfParallelism;
       mySource = source ?? throw new ArgumentNullException(nameof(source));
       myNewStorageFormat = newStorageFormat;
+      myCollisionResolutionMode = collisionResolutionMode;
+      myPeCollisionResolutionMode = peCollisionResolutionMode;
+      myBackupStorage = (collisionResolutionMode == CollisionResolutionMode.Overwrite || peCollisionResolutionMode == CollisionResolutionMode.Overwrite) ? backupStorage : null;
     }
 
     public async Task<int> ExecuteAsync()
@@ -73,7 +85,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           var statistics = new Statistics();
           ILogger logger = new LoggerWithStatistics(myLogger, statistics);
 
+          using var backupStorage = !string.IsNullOrEmpty(myBackupStorage) ? new FileSystemStorage(myBackupStorage) : null;
+
           long existFiles = 0;
+          long collisionFiles = 0;
           await srcFiles.ParallelForAsync(myDegreeOfParallelism, async srcFile =>
             {
               logger.Verbose($"  Checking {srcFile}");
@@ -97,30 +112,69 @@ namespace JetBrains.SymbolStorage.Impl.Commands
               
               if (await myStorage.ExistsAsync(dstFile))
               {
-                Interlocked.Increment(ref existFiles);
+                bool isSameFile = false;
                 var dstLen = await myStorage.GetLengthAsync(dstFile);
                 var srcLen = await srcStorage.GetLengthAsync(srcFile);
-                if (srcLen != dstLen)
-                {
-                  logger.Error($"The file {srcFile} length {srcLen} differs then the destination length {dstLen}");
-                }
-                else
+                if (dstLen == srcLen)
                 {
                   using var hash = SHA256.Create();
                   var dstHash = await myStorage.OpenForReadingAsync(dstFile, stream => hash.ComputeHashAsync(stream));
                   var srcHash = await srcStorage.OpenForReadingAsync(srcFile, stream => hash.ComputeHashAsync(stream));
-                  if (!srcHash.SequenceEqual(dstHash))
-                    logger.Error($"The file {srcFile} hash {srcHash.ToHex()} differs then the destination hash {dstHash.ToHex()}");
+                  if (srcHash.SequenceEqual(dstHash))
+                  {
+                    Interlocked.Increment(ref existFiles);
+                    isSameFile = true;
+                  }
+                }
+
+                if (!isSameFile)
+                {
+                  // Collision resolution logic
+                  Interlocked.Increment(ref collisionFiles);
+                  switch (myCollisionResolutionMode)
+                  {
+                    case CollisionResolutionMode.Terminate:
+                      logger.Error($"The source file {srcFile} differs from the destination. Processing will be terminated.");
+                      break;
+                    case CollisionResolutionMode.KeepExisted:
+                      logger.Fix($"The source file {srcFile} differs from the destination. Preserve existed file.");
+                      break;
+                    case CollisionResolutionMode.Overwrite when backupStorage != null:
+                      logger.Fix($"The source file {srcFile} differs from the destination. File will be overwritten, backup will be created.");
+                      // Assume that there is no collisions most of the time and for rare circumstances it is ok to re-read file from destination storage
+                      await myStorage.OpenForReadingAsync(dstFile, async stream =>
+                      {
+                        await backupStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream);
+                      });
+                      lock (uploadFilesSync)
+                      {
+                        uploadFiles.Add((srcFile, dstFile));
+                      }
+                      break;
+                    case CollisionResolutionMode.Overwrite when backupStorage == null:
+                    case CollisionResolutionMode.OverwriteWithoutBackup:
+                      logger.Fix($"The source file {srcFile} differs from the destination. File will be overwritten without backup.");
+                      lock (uploadFilesSync)
+                      {
+                        // TODO: handle overwrites in the next phase
+                        uploadFiles.Add((srcFile, dstFile));
+                      }
+                      break;
+                    default:
+                      throw new InvalidOperationException("Unknown CollisionResolutionMode value: " + myCollisionResolutionMode);
+                  }
                 }
               }
               else
               {
                 lock (uploadFilesSync)
+                {
                   uploadFiles.Add((srcFile, dstFile));
+                }
               }
             });
 
-          myLogger.Info($"[{DateTime.Now:s}] Done with compatibility (new files: {uploadFiles.Count}, same files: {existFiles}, warnings: {statistics.Warnings}, errors: {statistics.Errors})");
+          myLogger.Info($"[{DateTime.Now:s}] Done with compatibility (new files: {uploadFiles.Count}, same files: {existFiles}, collisions: {collisionFiles}, warnings: {statistics.Warnings}, errors: {statistics.Errors})");
           if (statistics.HasProblems)
           {
             myLogger.Error("Found some issues in source storage, uploading was interrupted");
