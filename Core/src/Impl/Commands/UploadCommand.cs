@@ -131,7 +131,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
                 {
                   // Collision resolution logic
                   Interlocked.Increment(ref collisionFiles);
-                  switch (myCollisionResolutionMode)
+                  switch (srcFile.IsPeWithWeakHashFile() ? myPeCollisionResolutionMode : myCollisionResolutionMode)
                   {
                     case CollisionResolutionMode.Terminate:
                       logger.Error($"The source file {srcFile} differs from the destination. Processing will be terminated.");
@@ -148,6 +148,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
                       });
                       lock (uploadFilesSync)
                       {
+                        // Storage overwrites existed files, so this will work as expected
                         uploadFiles.Add((srcFile, dstFile));
                       }
                       break;
@@ -156,7 +157,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
                       logger.Fix($"The source file {srcFile} differs from the destination. File will be overwritten without backup.");
                       lock (uploadFilesSync)
                       {
-                        // TODO: handle overwrites in the next phase
+                        // Storage overwrites existed files, so this will work as expected
                         uploadFiles.Add((srcFile, dstFile));
                       }
                       break;

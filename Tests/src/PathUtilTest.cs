@@ -179,5 +179,31 @@ namespace JetBrains.SymbolStorage.Tests
       Assert.AreEqual(PathUtil.ValidateAndFixErrors.CanBeFixed, path.NormalizeSystem().ValidateAndFixDataPath((StorageFormat) storageFormat, out var fixedPath));
       Assert.AreEqual(expectedPath.NormalizeSystem(), fixedPath);
     }
+
+
+    [DataTestMethod]
+    [DataRow("foo.exe/542D574Ec2000/foo.exe")]
+    [DataRow("foo.exe/542D574Ec2000/foo.EXE")]
+    [DataRow("foo.exe/542D574Ec2000/foo.ex_")]
+    [DataRow("foo.dll/542D574Ec2000/foo.dll")]
+    [DataRow("foo.dll/542D574Ec2000/foo.dl_")]
+    [DataRow("foo.dll/542D574Ec2000/foo.sys")]
+    [DataRow("foo.dll/542D574Ec2000/foo.sy_")]
+    public void IsPeWithWeakHashFileTest(string path)
+    {
+      Assert.IsTrue(path.IsPeWithWeakHashFile());
+    }
+    
+    [DataTestMethod]
+    [DataRow("foo.elf/542D574Ec2000/foo.elf")]
+    [DataRow("foo.exe/542D/foo.ex_")]
+    [DataRow("fOO.PDb/497B72F6390A44FC878e5A2D63b6cc4bFFFFFFFF/fOO.Pdb")]
+    [DataRow("foo.exe/497B72F6390A44FC878e5A2D63b6cc4bFFFFFFFF/foo.exe")]
+    [DataRow("foo.exe/542D574ES2000/foo.dll")]
+    [DataRow("foo.exe/542D574Ec2000000000/foo.dll")]
+    public void IsNotPeWithWeakHashFileTest(string path)
+    {
+      Assert.IsFalse(path.IsPeWithWeakHashFile());
+    }
   }
 }
