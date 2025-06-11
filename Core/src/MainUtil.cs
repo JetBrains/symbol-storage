@@ -170,7 +170,7 @@ namespace JetBrains.SymbolStorage
               AccessUtil.GetStorageFormat(newStorageFormatOption.Value()),
               collisionResolutionMode: AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value()),
               peCollisionResolutionMode: AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value())),
-              backupStorage: backupStorage.Value()).ExecuteAsync());
+              backupStorageDir: backupStorage.Value()).ExecuteAsync());
           });
 
         commandLine.Command("create", x =>
