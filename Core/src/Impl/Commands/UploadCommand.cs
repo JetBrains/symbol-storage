@@ -21,7 +21,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IStorage myStorage;
     private readonly CollisionResolutionMode myCollisionResolutionMode;
     private readonly CollisionResolutionMode myPeCollisionResolutionMode;
-    private readonly string? myBackupStorage;
+    private readonly string? myBackupStorageDir;
     private readonly int myDegreeOfParallelism;
 
     public UploadCommand(
@@ -32,9 +32,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       StorageFormat newStorageFormat,
       CollisionResolutionMode collisionResolutionMode,
       CollisionResolutionMode peCollisionResolutionMode,
-      string? backupStorage)
+      string? backupStorageDir)
     {
-      if ((collisionResolutionMode == CollisionResolutionMode.Overwrite || peCollisionResolutionMode == CollisionResolutionMode.Overwrite) && string.IsNullOrEmpty(backupStorage))
+      if ((collisionResolutionMode == CollisionResolutionMode.Overwrite || peCollisionResolutionMode == CollisionResolutionMode.Overwrite) && string.IsNullOrEmpty(backupStorageDir))
         throw new ArgumentException("Backup storage must be specified when collision resolution mode is 'overwrite'");
 
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -44,7 +44,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myNewStorageFormat = newStorageFormat;
       myCollisionResolutionMode = collisionResolutionMode;
       myPeCollisionResolutionMode = peCollisionResolutionMode;
-      myBackupStorage = (collisionResolutionMode == CollisionResolutionMode.Overwrite || peCollisionResolutionMode == CollisionResolutionMode.Overwrite) ? backupStorage : null;
+      myBackupStorageDir = (collisionResolutionMode == CollisionResolutionMode.Overwrite || peCollisionResolutionMode == CollisionResolutionMode.Overwrite) ? backupStorageDir : null;
     }
 
     public async Task<int> ExecuteAsync()
@@ -99,7 +99,6 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// <param name="srcStorage">Source storage</param>
     /// <param name="srcFiles">Files from source storage</param>
     /// <returns>List of files to upload + validation result</returns>
-    /// <exception cref="InvalidOperationException"></exception>
     private async Task<(List<(string src, string dst)> srcDstPairs, bool valid)> BuildFilesListForUploading(IStorage srcStorage, List<string> srcFiles)
     {
       var dstValidator = new Validator(myLogger, myStorage, "Destination");
@@ -112,7 +111,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var statistics = new Statistics();
       ILogger logger = new LoggerWithStatistics(myLogger, statistics);
 
-      using var backupStorage = !string.IsNullOrEmpty(myBackupStorage) ? new FileSystemStorage(myBackupStorage) : null;
+      using var backupStorage = !string.IsNullOrEmpty(myBackupStorageDir) ? new FileSystemStorage(myBackupStorageDir) : null;
 
       long existFiles = 0;
       long collisionFiles = 0;
