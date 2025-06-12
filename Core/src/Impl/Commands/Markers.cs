@@ -1,4 +1,6 @@
-﻿namespace JetBrains.SymbolStorage.Impl.Commands
+﻿#nullable enable
+
+namespace JetBrains.SymbolStorage.Impl.Commands
 {
   internal static class Markers
   {

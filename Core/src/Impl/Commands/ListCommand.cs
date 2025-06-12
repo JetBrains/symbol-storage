@@ -2,7 +2,6 @@
 
 using System;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
