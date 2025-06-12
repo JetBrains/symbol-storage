@@ -1,5 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+﻿#nullable enable
+
+using System;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
@@ -14,29 +15,29 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IStorage myStorage;
     private readonly int myDegreeOfParallelism;
     private readonly IdentityFilter myIdentityFilter;
-    private readonly TimeSpan mySafetyPeriod;
+    private readonly TimeSpan? myMinItemAgeFilter;
     private readonly bool? myProtectedFilter;
 
     public ListCommand(
-      [NotNull] ILogger logger,
-      [NotNull] IStorage storage,
+      ILogger logger,
+      IStorage storage,
       int degreeOfParallelism,
-      [NotNull] IdentityFilter identityFilter,
-      TimeSpan safetyPeriod,
+      IdentityFilter identityFilter,
+      TimeSpan? minItemAgeFilter,
       bool? protectedFilter)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
       myDegreeOfParallelism = degreeOfParallelism;
       myIdentityFilter = identityFilter ?? throw new ArgumentNullException(nameof(identityFilter));
-      mySafetyPeriod = safetyPeriod;
+      myMinItemAgeFilter = minItemAgeFilter;
       myProtectedFilter = protectedFilter;
     }
 
     public async Task<int> ExecuteAsync()
     {
       var validator = new Validator(myLogger, myStorage);
-      var (tagItems, _) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, mySafetyPeriod, myProtectedFilter);
+      var (tagItems, _) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, myMinItemAgeFilter, myProtectedFilter);
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);
       myLogger.Info($"[{DateTime.Now:s}] Done (tags: {tagItems.Count})");

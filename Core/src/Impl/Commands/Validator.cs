@@ -95,7 +95,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItemsAsync(
       int degreeOfParallelism,
       [NotNull] IdentityFilter identityFilter,
-      TimeSpan safetyPeriod,
+      TimeSpan? minItemAgeFilter,
       bool? protectedFilter)
     {
       if (identityFilter == null)
@@ -107,7 +107,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       {
         var tag = tagItem.Value;
         if (identityFilter.IsMatch(tag.Product ?? "", tag.Version ?? "") &&
-            tag.CreationUtcTime + safetyPeriod < DateTime.UtcNow &&
+            (minItemAgeFilter == null || tag.CreationUtcTime + minItemAgeFilter.Value < DateTime.UtcNow) &&
             (protectedFilter == null || protectedFilter == tag.IsProtected))
           inc.Add(tagItem);
         else
