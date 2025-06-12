@@ -159,7 +159,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var statistics = new Statistics();
       ILogger logger = new LoggerWithStatistics(myLogger, statistics);
       files = await ValidateDataFilesAsync(logger, degreeOfParallelism, files, storageFormat, fix);
-      var tree = await CreateDirectoryTreeAsync(degreeOfParallelism, files);
+      var tree = CreateDirectoryTree(degreeOfParallelism, files);
       await items.ParallelForAsync(degreeOfParallelism, async item =>
         {
           var tagFile = item.Key;
@@ -225,10 +225,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
               }
 
               var dstDir = dir.ValidateAndFixDataPath(storageFormat, out fixedDir) == PathUtil.ValidateAndFixErrors.CanBeFixed ? fixedDir : dir;
-              var node = tree;
-              foreach (var part in dstDir.GetPathComponents())
-                node = node?.Lookup(part);
-
+              var node = tree.LookupPathRecursive(dstDir);
+              
               if (node == null)
                 logger.Error($"The directory {dir} from {tagFile} id wasn't found");
               else
@@ -360,37 +358,41 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     }
 
     [NotNull]
-    private static async Task<PathTreeNode> CreateDirectoryTreeAsync(int degreeOfParallelism, [NotNull] IEnumerable<string> files)
+    private static PathTree CreateDirectoryTree(int degreeOfParallelism, [NotNull] IEnumerable<string> files)
     {
-      var tree = new PathTreeNode();
-      await files.ParallelForAsync(degreeOfParallelism, async file =>
-        {
-          await Task.Yield();
-          var node = tree;
-          foreach (var part in Path.GetDirectoryName(file).GetPathComponents())
-            node = node.GetOrInsert(part);
-          node.AddFile(file);
-        });
+      var tree = PathTree.BuildNew();
+      files.ParallelFor(degreeOfParallelism, file =>
+      {
+        var node = tree.Root;
+        var directory = Path.GetDirectoryName(file.AsSpan());
+        if (directory.Length > 0)
+          node = node.AddPathRecursive(directory);
+        node.AddFile(file);
+      });
 
-      return tree;
+      return tree.Build();
     }
 
-    private async Task<long> ValidateUnreachableAsync([NotNull] ILogger logger, [NotNull] PathTreeNode tree, ValidateMode mode)
+    private async Task<long> ValidateUnreachableAsync([NotNull] ILogger logger, [NotNull] PathTree tree, ValidateMode mode)
     {
       logger.Info(mode == ValidateMode.Delete
         ? $"[{DateTime.Now:s}] Delete unreachable files{myId}..."
         : $"[{DateTime.Now:s}] Validating unreachable files{myId}...");
       long deleted = 0;
       var stack = new Stack<PathTreeNode>();
-      stack.Push(tree);
+      stack.Push(tree.Root);
       while (stack.Count > 0)
       {
         var node = stack.Pop();
         if (node.HasChildren)
-          foreach (var child in node.Children)
+        {
+          foreach (var child in node.GetChildren())
             stack.Push(child);
+        }
+
         if (!node.HasReferences)
-          foreach (var file in node.Files)
+        {
+          foreach (var file in node.GetFiles())
           {
             if (mode == ValidateMode.Delete)
             {
@@ -408,6 +410,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
               }
             }
           }
+        }
       }
 
       return deleted;
