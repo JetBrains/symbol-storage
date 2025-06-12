@@ -21,9 +21,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public PathTreeNode Root => rootNode;
 
-    public PathTreeNode? LookupPathRecursive(string path)
+    /// <summary>
+    /// Lookup tree recursively.
+    /// <paramref name="dirPath"/> should be a directory (file part is not allowed)
+    /// </summary>
+    /// <param name="dirPath">Directory path (file name should be excluded)</param>
+    public PathTreeNode? LookupPathRecursive(string dirPath)
     {
-      return rootNode.LookupPathRecursive(path.AsSpan());
+      return rootNode.LookupPathRecursive(dirPath.AsSpan());
+    }
+    public PathTreeNode? LookupPathRecursive(ReadOnlySpan<char> dirPath)
+    {
+      return rootNode.LookupPathRecursive(dirPath);
     }
   }
 
@@ -113,11 +122,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return myChildren != null && myChildren.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(part, out var value) ? value : null;
     }
     
-    public PathTreeNode? LookupPathRecursive(ReadOnlySpan<char> path)
+    public PathTreeNode? LookupPathRecursive(ReadOnlySpan<char> dirPath)
     {
       PathTreeNode? node = this;
-      foreach (var partRange in path.GetPathComponents())
-        node = node?.Lookup(path[partRange]);
+      foreach (var partRange in dirPath.GetPathComponents())
+        node = node?.Lookup(dirPath[partRange]);
 
       return node;
     }
@@ -191,20 +200,20 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         }
       }
       
-      public void AddFile(string file)
+      public void AddFile(string fileName)
       {
         lock (myNode.myLock)
         {
           myNode.myFiles ??= new List<string>();
-          myNode.myFiles.Add(file);
+          myNode.myFiles.Add(fileName);
         }
       }
       
-      public Builder AddPathRecursive(ReadOnlySpan<char> path)
+      public Builder AddPathRecursive(ReadOnlySpan<char> dirPath)
       {
         var curNode = this;
-        foreach (var partRange in path.GetPathComponents())
-          curNode = curNode.GetOrInsert(path[partRange]);
+        foreach (var partRange in dirPath.GetPathComponents())
+          curNode = curNode.GetOrInsert(dirPath[partRange]);
         
         return curNode;
       }
