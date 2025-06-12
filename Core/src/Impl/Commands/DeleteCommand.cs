@@ -1,7 +1,8 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
@@ -17,10 +18,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IdentityFilter myIdentityFilter;
 
     public DeleteCommand(
-      [NotNull] ILogger logger,
-      [NotNull] IStorage storage,
+      ILogger logger,
+      IStorage storage,
       int degreeOfParallelism,
-      [NotNull] IdentityFilter identityFilter,
+      IdentityFilter identityFilter,
       TimeSpan safetyPeriod)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));

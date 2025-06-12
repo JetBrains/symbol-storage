@@ -1,6 +1,7 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using Amazon;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
@@ -31,7 +32,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public const string CollisionResolutionOverwriteWithoutBackup = "overwritewithoutbackup";
     
 
-    public static bool? GetProtectedValue([NotNull] string value) => value switch
+    public static bool? GetProtectedValue(string value) => value switch
       {
         ProtectedAll => null,
         ProtectedOn => true,
@@ -39,19 +40,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
       };
     
-    public static int GetDegreeOfParallelism(string degreeOfParallelism)
+    public static int GetDegreeOfParallelism(string? degreeOfParallelism)
     {
       var res = degreeOfParallelism != null
         ? int.Parse(degreeOfParallelism)
         : DefaultDegreeOfParallelism;
       if (res < 1)
-        throw new Exception("The execute task count can't be less then 1");
+        throw new ArgumentException("The execute task count can't be less then 1");
       Console.WriteLine("Execute {0} tasks in parallel", res);
       return res;
     }
-
-    [NotNull]
-    public static IStorage GetStorage([CanBeNull] string dir, [CanBeNull] string awsS3BucketName, [CanBeNull] string awsS3RegionEndpoint)
+    
+    public static IStorage GetStorage(string? dir, string? awsS3BucketName, string? awsS3RegionEndpoint)
     {
       if (!string.IsNullOrEmpty(dir) && string.IsNullOrEmpty(awsS3BucketName))
         return GetFileSystemStorage(dir);
@@ -59,15 +59,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         return GetAwsS3Storage(awsS3BucketName, awsS3RegionEndpoint ?? DefaultAwsS3RegionEndpoint);
       throw new Exception("The storage location option should be defined");
     }
-
-    [NotNull]
-    private static IStorage GetFileSystemStorage([NotNull] string dir)
+    
+    private static IStorage GetFileSystemStorage(string dir)
     {
       return new FileSystemStorage(dir);
     }
-
-    [NotNull]
-    private static IStorage GetAwsS3Storage([NotNull] string awsS3BucketName, [NotNull] string awsS3RegionEndpoint)
+    
+    private static IStorage GetAwsS3Storage(string awsS3BucketName, string awsS3RegionEndpoint)
     {
       var accessKey = Environment.GetEnvironmentVariable(AwsS3AccessKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 access key");
       var secretKey = Environment.GetEnvironmentVariable(AwsS3SecretKeyEnvironmentVariable) ?? ConsoleUtil.ReadHiddenConsoleInput("Enter AWS S3 secret key");
@@ -82,14 +80,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         cloudFrontDistributionId: cloudFrontDistributionId);
     }
 
-    [CanBeNull]
-    private static string ConvertSpecialEmptyValue([CanBeNull] this string env)
+    private static string? ConvertSpecialEmptyValue(this string? env)
     {
       // Bug: cmd.exe doesn't support empty environment variables!!! So, use `_` for empty value...
       return env == "_" ? "" : env;
     }
 
-    public static StorageFormat GetStorageFormat([CanBeNull] string casing) => casing switch
+    public static StorageFormat GetStorageFormat(string? casing) => casing switch
       {
         null => StorageFormat.Normal,
         NormalStorageFormat => StorageFormat.Normal,
@@ -98,7 +95,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         _ => throw new ArgumentOutOfRangeException(nameof(casing), casing, null)
       };
 
-    public static CollisionResolutionMode GetCollisionResolutionMode([CanBeNull] string value, CollisionResolutionMode defaultMode = CollisionResolutionMode.Terminate) => value?.ToLowerInvariant() switch
+    public static CollisionResolutionMode GetCollisionResolutionMode(string? value, CollisionResolutionMode defaultMode = CollisionResolutionMode.Terminate) => value?.ToLowerInvariant() switch
     {
       null => defaultMode,
       CollisionResolutionTerminate => CollisionResolutionMode.Terminate,
