@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -32,7 +33,7 @@ namespace JetBrains.SymbolStorage
     //   128+n - Fatal error signal “n”
     //   130   - Script terminated by Control-C
     //   255\* - Exit status out of range
-    public static byte Main(Assembly mainAssembly, [NotNull] string[] args, MainMode mode)
+    public static byte Main(Assembly mainAssembly, [Annotations.NotNull] string[] args, MainMode mode)
     {
       try
       {
@@ -83,9 +84,14 @@ namespace JetBrains.SymbolStorage
 
           static void SafetyPeriodOptions(
             CommandLineApplication x,
+            TimeSpan? defaultPeriod,
             out CommandOption safetyPeriodOption)
           {
-            safetyPeriodOption = x.Option("-sp|--safety-period", $"The safety period for young files. {AccessUtil.DefaultSafetyPeriod.Days:D} days by default.", CommandOptionType.MultipleValue);
+            string description = "The safety period for young files (files with a lower age will be skipped).";
+            if (defaultPeriod != null)
+              description += $" {defaultPeriod.Value.Days:D} days by default.";
+            
+            safetyPeriodOption = x.Option("-sp|--safety-period", description, CommandOptionType.SingleValue);
           }
 
           commandLine.Command("list", x =>
@@ -97,7 +103,7 @@ namespace JetBrains.SymbolStorage
                 out var excFilterProductOption,
                 out var incFilterVersionOption,
                 out var excFilterVersionOption);
-              SafetyPeriodOptions(x, out var safetyPeriodOption);
+              SafetyPeriodOptions(x, null, out var safetyPeriodOption);
               var filterProtectedOption = x.Option("-fr|--protected-filter", $"Filter by protected value: {AccessUtil.ProtectedAll}, {AccessUtil.ProtectedOn} and {AccessUtil.ProtectedOff}. The default is {AccessUtil.ProtectedDefault}.", CommandOptionType.SingleValue);
               x.OnExecute(() => new ListCommand(
                 new ConsoleLogger(verboseOption.HasValue()),
@@ -108,7 +114,7 @@ namespace JetBrains.SymbolStorage
                   excFilterProductOption.Values,
                   incFilterVersionOption.Values,
                   excFilterVersionOption.Values),
-                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod),
+                ParseDays(safetyPeriodOption.Value(), defaultDays: null),
                 ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedDefault)).ExecuteAsync());
             });
 
@@ -121,7 +127,7 @@ namespace JetBrains.SymbolStorage
                 out var excFilterProductOption,
                 out var incFilterVersionOption,
                 out var excFilterVersionOption);
-              SafetyPeriodOptions(x, out var safetyPeriodOption);
+              SafetyPeriodOptions(x, AccessUtil.DefaultSafetyPeriod, out var safetyPeriodOption);
               x.OnExecute(() => new DeleteCommand(
                 new ConsoleLogger(verboseOption.HasValue()),
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
@@ -131,7 +137,7 @@ namespace JetBrains.SymbolStorage
                   excFilterProductOption.Values,
                   incFilterVersionOption.Values,
                   excFilterVersionOption.Values),
-                ParseDays(safetyPeriodOption.Value(), AccessUtil.DefaultSafetyPeriod)).ExecuteAsync());
+                ParseDays(safetyPeriodOption.Value(), defaultDays: AccessUtil.DefaultSafetyPeriod).Value).ExecuteAsync());
             });
         }
 
@@ -304,13 +310,14 @@ namespace JetBrains.SymbolStorage
       }
     }
 
-    private static TimeSpan ParseDays([CanBeNull] string days, TimeSpan defaultDays) => days != null ? TimeSpan.FromDays(ulong.Parse(days)) : defaultDays;
+    [return: NotNullIfNotNull(nameof(defaultDays))]
+    private static TimeSpan? ParseDays([CanBeNull] string days, TimeSpan? defaultDays) => days != null ? TimeSpan.FromDays(ulong.Parse(days)) : defaultDays;
 
-    private static bool? ParseProtected([CanBeNull] string value, [NotNull] string defaultValue) => value != null
+    private static bool? ParseProtected([CanBeNull] string value, [Annotations.NotNull] string defaultValue) => value != null
       ? AccessUtil.GetProtectedValue(value)
       : AccessUtil.GetProtectedValue(defaultValue);
 
-    private static async Task<IReadOnlyCollection<string>> ParsePaths([NotNull] IEnumerable<string> paths)
+    private static async Task<IReadOnlyCollection<string>> ParsePaths([Annotations.NotNull] IEnumerable<string> paths)
     {
       if (paths == null)
         throw new ArgumentNullException(nameof(paths));
