@@ -23,9 +23,16 @@ namespace JetBrains.SymbolStorage.Impl
         throw new Exception("At least one symbol in extension is expected");
       return ext.Substring(0, ext.Length - 1) + '_';
     }
-
+    
     [NotNull]
     public static string[] GetPathComponents([CanBeNull] this string path) => string.IsNullOrEmpty(path) ? Array.Empty<string>() : path.Split(Path.DirectorySeparatorChar);
+    
+    public static MemoryExtensions.SpanSplitEnumerator<char> GetPathComponents(this ReadOnlySpan<char> path)
+    {
+      if (path.Length == 0)
+        return new MemoryExtensions.SpanSplitEnumerator<char>();
+      return path.Split(Path.DirectorySeparatorChar);
+    }
 
     public enum ValidateAndFixErrors
     {
