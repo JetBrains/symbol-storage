@@ -12,6 +12,7 @@ namespace JetBrains.SymbolStorage.Tests
   {
     private const string AwsS3AccessKeyEnvironmentVariable = "JETBRAINS_AWSS3_ACCESS_KEY";
     private const string AwsS3SecretKeyEnvironmentVariable = "JETBRAINS_AWSS3_SECRET_KEY";
+    private const string AwsS3SessionTokenEnvironmentVariable = "JETBRAINS_AWSS3_SESSION_TOKEN";
     private const string AwsS3BucketNameEnvironmentVariable = "JETBRAINS_AWSS3_BUCKET_NAME";
     private const string AwsS3RegionEnvironmentVariable = "JETBRAINS_AWSS3_REGION";
     private const string AwsCloudFrontDistributionIdEnvironmentVariable = "JETBRAINS_AWSCF_DISTRIBUTION_ID";
@@ -22,17 +23,21 @@ namespace JetBrains.SymbolStorage.Tests
     {
       var accessKey = Environment.GetEnvironmentVariable(AwsS3AccessKeyEnvironmentVariable);
       var secretKey = Environment.GetEnvironmentVariable(AwsS3SecretKeyEnvironmentVariable);
+      var sessionToken = Environment.GetEnvironmentVariable(AwsS3SessionTokenEnvironmentVariable);
       var bucketName = Environment.GetEnvironmentVariable(AwsS3BucketNameEnvironmentVariable);
       var region = Environment.GetEnvironmentVariable(AwsS3RegionEnvironmentVariable);
       var cloudFrontDistributionId = Environment.GetEnvironmentVariable(AwsCloudFrontDistributionIdEnvironmentVariable);
       
       if (string.IsNullOrEmpty(accessKey) || string.IsNullOrEmpty(secretKey) || string.IsNullOrEmpty(bucketName) || string.IsNullOrEmpty(region))
         Assert.Inconclusive("AWS Storage Environment Variables not provided");
+      if (string.IsNullOrEmpty(sessionToken))
+        sessionToken = null;
       if (string.IsNullOrEmpty(cloudFrontDistributionId))
         cloudFrontDistributionId = null;
       
       return new AwsS3Storage(accessKey: accessKey,
         secretKey: secretKey,
+        sessionToken: sessionToken,
         bucketName: bucketName,
         region: region,
         cloudFrontDistributionId: cloudFrontDistributionId,
