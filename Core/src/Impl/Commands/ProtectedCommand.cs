@@ -34,7 +34,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       var validator = new Validator(myLogger, myStorage);
       await validator.ValidateStorageMarkersAsync();
-      var (tagItems, _) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, TimeSpan.Zero, !myIsProtected);
+      var (tagItems, _) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, null, !myIsProtected);
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);
 
