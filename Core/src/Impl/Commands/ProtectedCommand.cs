@@ -39,7 +39,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       validator.DumpProperties(tagItems);
 
       myLogger.Info($"[{DateTime.Now:s}] Updating tag files");
-      await tagItems.ParallelFor(myDegreeOfParallelism, async tagItem =>
+      await tagItems.ParallelForAsync(myDegreeOfParallelism, async tagItem =>
         {
           var tagFile = tagItem.Key;
           myLogger.Verbose($"  Updating {tagFile}...");

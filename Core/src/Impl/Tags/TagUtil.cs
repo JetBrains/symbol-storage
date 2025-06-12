@@ -17,6 +17,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
   {
     private const string TagDirectory = "_jb.tags";
     private const string TagExtension = ".tag";
+    private static readonly string TagDirectoryPathPrefix = TagDirectory + Path.DirectorySeparatorChar;
 
     [NotNull]
     public static string MakeTagFile([NotNull] Identity identity, Guid fileId)
@@ -63,7 +64,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     {
       if (storage == null)
         throw new ArgumentNullException(nameof(storage));
-      return await storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory).ParallelFor(degreeOfParallelism, async item =>
+      return await storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory).ParallelForAsync(degreeOfParallelism, async item =>
         {
           var file = item.Name;
           progress?.Invoke(file);
@@ -82,7 +83,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       file == Markers.LowerCase ||
       file == Markers.UpperCase;
 
-    public static bool IsTagFile([NotNull] string file) => file.StartsWith(TagDirectory + Path.DirectorySeparatorChar);
+    public static bool IsTagFile([NotNull] string file) => file.StartsWith(TagDirectoryPathPrefix);
     public static bool IsDataFile([NotNull] string file) => !(IsStorageFormatFile(file) || IsStorageCasingFile(file) || IsTagFile(file));
 
     public static bool ValidateProduct([CanBeNull] string product) => !string.IsNullOrEmpty(product) && product.All(IsValidProduct);
