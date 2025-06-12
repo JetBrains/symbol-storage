@@ -1,12 +1,12 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
-using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
@@ -21,13 +21,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly string mySymbolReferenceFile;
 
     public DumpCommand(
-      [NotNull] ILogger logger,
+      ILogger logger,
       int degreeOfParallelism,
       bool isCompressPe,
       bool isCompressWPdb,
-      [NotNull] string symbolReferenceFile,
-      [NotNull] IReadOnlyCollection<string> sources,
-      [NotNull] string baseDir)
+      string symbolReferenceFile,
+      IReadOnlyCollection<string> sources,
+      string baseDir)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myDegreeOfParallelism = degreeOfParallelism;
@@ -63,7 +63,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return 0;
     }
 
-    private Task WriteSymRef([NotNull] IEnumerable<KeyValuePair<string, string>> map)
+    private Task WriteSymRef(IEnumerable<KeyValuePair<string, string>> map)
     {
       myLogger.Info($"[{DateTime.Now:s}] Writing symbol reference file...");
       var orderedMap = map.OrderBy(x => x.Key).ToList();

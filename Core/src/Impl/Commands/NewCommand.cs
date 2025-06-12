@@ -1,6 +1,7 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 
@@ -13,8 +14,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IStorage myStorage;
 
     public NewCommand(
-      [NotNull] ILogger logger,
-      [NotNull] IStorage storage,
+      ILogger logger,
+      IStorage storage,
       StorageFormat newStorageFormat)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
