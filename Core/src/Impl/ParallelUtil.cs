@@ -10,6 +10,13 @@ namespace JetBrains.SymbolStorage.Impl
 {
   internal static class ParallelUtil
   { 
+    public static void ParallelFor<TSource>(
+      this IEnumerable<TSource> sources,
+      int degreeOfParallelism,
+      Action<TSource> func)
+    {
+      Parallel.ForEach(sources, new ParallelOptions() { MaxDegreeOfParallelism = degreeOfParallelism }, func);
+    }
     public static List<TResult> ParallelFor<TSource, TResult>(
       this IEnumerable<TSource> sources,
       int degreeOfParallelism,
