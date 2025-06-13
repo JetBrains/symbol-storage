@@ -1,4 +1,6 @@
-﻿using JetBrains.SymbolStorage.Impl.Logger;
+﻿#nullable enable
+
+using JetBrains.SymbolStorage.Impl.Logger;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace JetBrains.SymbolStorage.Tests

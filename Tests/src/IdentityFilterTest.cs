@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using JetBrains.SymbolStorage.Impl.Tags;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
