@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System;
+﻿using System;
 using Amazon;
 using JetBrains.SymbolStorage.Impl.Storages;
 

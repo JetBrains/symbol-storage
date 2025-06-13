@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-namespace JetBrains.SymbolStorage.Impl.Logger
+﻿namespace JetBrains.SymbolStorage.Impl.Logger
 {
   internal interface ILogger
   {
