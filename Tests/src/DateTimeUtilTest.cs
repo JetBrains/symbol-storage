@@ -1,6 +1,4 @@
-﻿#nullable enable
-
-using System;
+﻿using System;
 using JetBrains.SymbolStorage.Impl.Commands;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
