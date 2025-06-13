@@ -48,6 +48,9 @@ namespace JetBrains.SymbolStorage.Tests
 
       next = treeBuilder.AddPathRecursive($"abc{Path.DirectorySeparatorChar}www");
       next.AddFile("data2.exe");
+
+      next = treeBuilder.AddPathRecursive("");
+      next.AddFile("data3.exe");
       
       var tree = treeBuilder.Build();
       Assert.IsTrue(tree.Root.HasChildren);
@@ -59,6 +62,11 @@ namespace JetBrains.SymbolStorage.Tests
       child = tree.LookupPathRecursive($"abc{Path.DirectorySeparatorChar}www");
       Assert.IsNotNull(child);
       Assert.AreEqual("data2.exe", child.GetFiles().Single());
+      
+      child = tree.LookupPathRecursive("");
+      Assert.IsNotNull(child);
+      Assert.AreEqual("data3.exe", child.GetFiles().Single());
+      Assert.AreEqual("data3.exe", tree.Root.GetFiles().Single());
     }
 
     [TestMethod]
