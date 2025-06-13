@@ -1,13 +1,12 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
@@ -16,13 +15,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 {
   internal sealed class Validator
   {
-    [CanBeNull]
-    private readonly string myId;
+    private readonly string? myId;
 
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
 
-    public Validator([NotNull] ILogger logger, [NotNull] IStorage storage, [CanBeNull] string id = null)
+    public Validator(ILogger logger, IStorage storage, string? id = null)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -94,7 +92,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     
     public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItemsAsync(
       int degreeOfParallelism,
-      [NotNull] IdentityFilter identityFilter,
+      IdentityFilter identityFilter,
       TimeSpan? minItemAgeFilter,
       bool? protectedFilter)
     {
@@ -117,7 +115,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return new(inc, exc);
     }
 
-    public void DumpProducts([NotNull] IEnumerable<KeyValuePair<string, Tag>> tagItems)
+    public void DumpProducts(IEnumerable<KeyValuePair<string, Tag>> tagItems)
     {
       myLogger.Info($"[{DateTime.Now:s}] Tags{myId}...");
       foreach (var product in tagItems.OrderBy(x => x.Value.Product, StringComparer.Ordinal).ThenBy(x => x.Value.Version, StringComparer.Ordinal).GroupBy(x => x.Value.Product))
@@ -128,10 +126,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
     }
 
-    public void DumpProperties([NotNull] IEnumerable<KeyValuePair<string, Tag>> tagItems)
+    public void DumpProperties(IEnumerable<KeyValuePair<string, Tag>> tagItems)
     {
       myLogger.Info($"[{DateTime.Now:s}] Tag properties{myId}...");
-      foreach (var property in tagItems.SelectMany(x => x.Value.Properties).OrderBy(x => x.Key, StringComparer.Ordinal).ThenBy(x => x.Value, StringComparer.Ordinal).GroupBy(x => x.Key))
+      foreach (var property in tagItems.SelectMany(x => x.Value.Properties ?? []).OrderBy(x => x.Key, StringComparer.Ordinal).ThenBy(x => x.Value, StringComparer.Ordinal).GroupBy(x => x.Key))
       {
         myLogger.Info($"  {property.Key}");
         foreach (var value in property.Select(x => x.Value).Distinct())
@@ -148,8 +146,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<Tuple<Statistics, long>> ValidateAsync(
       int degreeOfParallelism,
-      [NotNull] IEnumerable<KeyValuePair<string, Tag>> items,
-      [NotNull] IReadOnlyCollection<string> files,
+      IEnumerable<KeyValuePair<string, Tag>> items,
+      IReadOnlyCollection<string> files,
       StorageFormat storageFormat,
       ValidateMode mode,
       bool verifyAcl = false)
@@ -249,7 +247,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return Tuple.Create(statistics, deleted);
     }
 
-    private static DateTime? TryFixCreationTime([NotNull] Tag tag)
+    private static DateTime? TryFixCreationTime(Tag tag)
     {
       if (tag.Product == "dotNetDiv")
         if (tag.Version == "beforeWaves")
@@ -276,7 +274,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return null;
     }
 
-    private async Task ValidateAclAsync([NotNull] ILogger logger, int degreeOfParallelism, [NotNull] IEnumerable<string> files, bool fix)
+    private async Task ValidateAclAsync(ILogger logger, int degreeOfParallelism, IEnumerable<string> files, bool fix)
     {
       if (!myStorage.SupportAccessMode)
       {
@@ -315,11 +313,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         });
     }
 
-    [NotNull]
     private async Task<IReadOnlyCollection<string>> ValidateDataFilesAsync(
-      [NotNull] ILogger logger,
+      ILogger logger,
       int degreeOfParallelism,
-      [NotNull] IEnumerable<string> files,
+      IEnumerable<string> files,
       StorageFormat storageFormat,
       bool fix)
     {
@@ -357,8 +354,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return res;
     }
 
-    [NotNull]
-    private static PathTree CreateDirectoryTree(int degreeOfParallelism, [NotNull] IEnumerable<string> files)
+    private static PathTree CreateDirectoryTree(int degreeOfParallelism, IEnumerable<string> files)
     {
       var tree = PathTree.BuildNew();
       files.ParallelFor(degreeOfParallelism, file =>
@@ -373,7 +369,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return tree.Build();
     }
 
-    private async Task<long> ValidateUnreachableAsync([NotNull] ILogger logger, [NotNull] PathTree tree, ValidateMode mode)
+    private async Task<long> ValidateUnreachableAsync(ILogger logger, PathTree tree, ValidateMode mode)
     {
       logger.Info(mode == ValidateMode.Delete
         ? $"[{DateTime.Now:s}] Delete unreachable files{myId}..."
@@ -422,7 +418,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       long totalSize = 0;
       var files = await myStorage.GetChildrenAsync(ChildrenMode.WithSize).Select(x =>
         {
-          Interlocked.Add(ref totalSize, x.Size);
+          if (x.Size.HasValue)
+            Interlocked.Add(ref totalSize, x.Size.Value);
           return x.Name;
         }).Where(TagUtil.IsDataFile).ToListAsync();
       return new Tuple<long, IReadOnlyCollection<string>>(totalSize, files);
