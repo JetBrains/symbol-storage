@@ -1,11 +1,12 @@
 ﻿using System;
+using System.Threading;
 
 namespace JetBrains.SymbolStorage.Impl.Logger
 {
   internal sealed class ConsoleLogger : ILogger
   {
     private readonly bool myVerbose;
-    private static readonly object ourLock = new();
+    private static readonly Lock ourLock = new();
 
     public ConsoleLogger(bool verbose)
     {

@@ -1,7 +1,4 @@
-﻿#nullable enable
-
-using System;
-using JetBrains.Annotations;
+﻿using System;
 using JetBrains.SymbolStorage.Impl.Logger;
 using Microsoft.SymbolStore;
 

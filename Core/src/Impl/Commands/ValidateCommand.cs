@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 
@@ -15,8 +14,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly bool myVerifyAcl;
 
     public ValidateCommand(
-      [NotNull] ILogger logger,
-      [NotNull] IStorage storage,
+      ILogger logger,
+      IStorage storage,
       int degreeOfParallelism,
       bool verifyAcl,
       bool fix)

@@ -29,7 +29,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow("\\a")]
     [DataRow("a\\")]
     [DataRow("a🀇b")]
-    public void CheckSystemFileTest(string path)
+    public void CheckSystemFileTest(string? path)
     {
       var path2 = path?.Replace("🀇", RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "/" : "\\"); // To verify, that path does not contain separator from other OS
       Assert.Throws<ArgumentException>(() =>

@@ -1,17 +1,14 @@
 ﻿using System;
-using JetBrains.Annotations;
 
 namespace JetBrains.SymbolStorage.Impl
 {
   internal static class PresentationUtil
   {
-    [NotNull]
-    public static string ToHex([NotNull] this byte[] data)
+    public static string ToHex(this byte[] data)
     {
       return BitConverter.ToString(data).Replace("-", "");
     }
 
-    [NotNull]
     public static string ToKibibyte(this long value)
     {
       if (value < 0)
@@ -31,7 +28,6 @@ namespace JetBrains.SymbolStorage.Impl
       return $"{value} B";
     }
 
-    [NotNull]
     public static string ToKibibyte(this ulong value)
     {
       if (value < 1000U)

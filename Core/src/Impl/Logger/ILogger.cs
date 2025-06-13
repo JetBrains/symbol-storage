@@ -1,13 +1,11 @@
-﻿using JetBrains.Annotations;
-
-namespace JetBrains.SymbolStorage.Impl.Logger
+﻿namespace JetBrains.SymbolStorage.Impl.Logger
 {
   internal interface ILogger
   {
-    void Verbose([NotNull] string str);
-    void Info([NotNull] string str);
-    void Fix([NotNull] string str);
-    void Warning([NotNull] string str);
-    void Error([NotNull] string str);
+    void Verbose(string str);
+    void Info(string str);
+    void Fix(string str);
+    void Warning(string str);
+    void Error(string str);
   }
 }

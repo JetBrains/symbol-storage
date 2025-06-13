@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 
 namespace JetBrains.SymbolStorage.Impl.Storages
 {
@@ -11,7 +10,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
   {
     private readonly string myRootDir;
 
-    public FileSystemStorage([NotNull] string rootDir)
+    public FileSystemStorage(string rootDir)
     {
       myRootDir = rootDir ?? throw new ArgumentNullException(nameof(rootDir));
       Directory.CreateDirectory(myRootDir);
@@ -140,7 +139,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return !Directory.EnumerateFileSystemEntries(myRootDir).Any();
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, [CanBeNull] string prefixDir = null)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, string? prefixDir = null)
     {
       await Task.Yield();
       var stack = new Stack<string>();
@@ -155,7 +154,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
             yield return new ChildrenItem
               {
                 Name = Path.GetRelativePath(myRootDir, path),
-                Size = (mode & ChildrenMode.WithSize) != 0 ? file.Length : -1
+                Size = (mode & ChildrenMode.WithSize) != 0 ? file.Length : null
               };
           else
             stack.Push(path);
@@ -163,7 +162,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task InvalidateExternalServicesAsync([CanBeNull] IEnumerable<string> fileMasks = null)
+    public Task InvalidateExternalServicesAsync(IEnumerable<string>? fileMasks = null)
     {
       if (fileMasks != null)
         foreach (var key in fileMasks)
@@ -171,7 +170,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return Task.CompletedTask;
     }
 
-    private void TryRemoveEmptyDirsToRootDir([NotNull] string dir)
+    private void TryRemoveEmptyDirsToRootDir(string dir)
     {
       while (!string.IsNullOrEmpty(dir))
       {

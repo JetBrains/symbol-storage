@@ -1,9 +1,6 @@
-﻿#nullable enable
-
-using System;
+﻿using System;
 using System.IO;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 
 namespace JetBrains.SymbolStorage.Impl.Storages
 {
