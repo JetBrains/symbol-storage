@@ -1,8 +1,6 @@
-﻿namespace JetBrains.SymbolStorage.Impl.Storages
+﻿#nullable enable
+
+namespace JetBrains.SymbolStorage.Impl.Storages
 {
-  internal struct ChildrenItem
-  {
-    public string Name;
-    public long Size;
-  }
+  internal readonly record struct ChildrenItem(string Name, long? Size);
 }

@@ -1,7 +1,8 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.IO;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
@@ -17,10 +18,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly bool myIsProtected;
 
     public ProtectedCommand(
-      [NotNull] ILogger logger,
-      [NotNull] IStorage storage,
+      ILogger logger,
+      IStorage storage,
       int degreeOfParallelism,
-      [NotNull] IdentityFilter identityFilter,
+      IdentityFilter identityFilter,
       bool isProtected)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));

@@ -1,10 +1,11 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using JetBrains.Annotations;
 
 namespace JetBrains.SymbolStorage.Impl
 {
@@ -14,8 +15,7 @@ namespace JetBrains.SymbolStorage.Impl
     private const string DllExt = ".dll";
     private const string ExeExt = ".exe";
 
-    [NotNull]
-    public static string GetPackedExtension([NotNull] string ext)
+    public static string GetPackedExtension(string ext)
     {
       if (!ext.StartsWith("."))
         throw new Exception("Invalid extension format");
@@ -24,8 +24,7 @@ namespace JetBrains.SymbolStorage.Impl
       return ext.Substring(0, ext.Length - 1) + '_';
     }
     
-    [NotNull]
-    public static string[] GetPathComponents([CanBeNull] this string path) => string.IsNullOrEmpty(path) ? Array.Empty<string>() : path.Split(Path.DirectorySeparatorChar);
+    public static string[] GetPathComponents(this string? path) => string.IsNullOrEmpty(path) ? Array.Empty<string>() : path.Split(Path.DirectorySeparatorChar);
     
     public static MemoryExtensions.SpanSplitEnumerator<char> GetPathComponents(this ReadOnlySpan<char> path)
     {
@@ -41,9 +40,9 @@ namespace JetBrains.SymbolStorage.Impl
       Error
     }
 
-    public static ValidateAndFixErrors ValidateAndFixDataPath([NotNull] this string path, StorageFormat storageFormat, out string fixedPath)
+    public static ValidateAndFixErrors ValidateAndFixDataPath(this string path, StorageFormat storageFormat, out string fixedPath)
     {
-      fixedPath = null;
+      fixedPath = path;
       var parts = path.GetPathComponents();
       if (parts.Length != 2 && parts.Length != 3)
         return ValidateAndFixErrors.Error;
@@ -138,8 +137,7 @@ namespace JetBrains.SymbolStorage.Impl
       ch >= 'a' && ch <= 'f' ||
       ch >= 'A' && ch <= 'F';
 
-    [NotNull]
-    public static string CheckSystemFile([CanBeNull] this string file)
+    public static string CheckSystemFile(this string? file)
     {
       if (string.IsNullOrEmpty(file))
         throw new ArgumentNullException(nameof(file));
@@ -151,23 +149,21 @@ namespace JetBrains.SymbolStorage.Impl
       return file;
     }
     
-    [NotNull]
-    public static string NormalizeLinux([NotNull] this string path)
+    public static string NormalizeLinux(this string path)
     {
       if (path == null)
         throw new ArgumentNullException(nameof(path));
       return path.Replace('\\', '/');
     }
 
-    [NotNull]
-    public static string NormalizeSystem([NotNull] this string path)
+    public static string NormalizeSystem(this string path)
     {
       if (path == null)
         throw new ArgumentNullException(nameof(path));
       return path.Replace('/', Path.DirectorySeparatorChar);
     }
     
-    public static bool IsPeWithWeakHashFile([NotNull] this string path)
+    public static bool IsPeWithWeakHashFile(this string path)
     {
       var extension = Path.GetExtension(path.AsSpan());
       if (extension.Length != 4)

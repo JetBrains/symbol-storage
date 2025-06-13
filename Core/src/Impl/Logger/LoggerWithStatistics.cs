@@ -1,5 +1,6 @@
-﻿using System;
-using JetBrains.Annotations;
+﻿#nullable enable
+
+using System;
 
 namespace JetBrains.SymbolStorage.Impl.Logger
 {
@@ -8,7 +9,7 @@ namespace JetBrains.SymbolStorage.Impl.Logger
     private readonly ILogger myLogger;
     private readonly Statistics myStatistics;
 
-    public LoggerWithStatistics([NotNull] ILogger logger, [NotNull] Statistics statistics)
+    public LoggerWithStatistics(ILogger logger, Statistics statistics)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStatistics = statistics ?? throw new ArgumentNullException(nameof(statistics));

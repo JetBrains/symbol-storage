@@ -1,19 +1,17 @@
-﻿using System;
-using JetBrains.Annotations;
+﻿#nullable enable
+
+using System;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
-  internal sealed class Identity
+  internal sealed record Identity
   {
-    [NotNull]
-    public readonly string Product;
-
-    [NotNull]
-    public readonly string Version;
+    public string Product { get; }
+    public string Version { get; }
 
     public Identity(
-      [NotNull] string product,
-      [NotNull] string version)
+      string product,
+      string version)
     {
       Product = product ?? throw new ArgumentNullException(nameof(product));
       Version = version ?? throw new ArgumentNullException(nameof(version));
