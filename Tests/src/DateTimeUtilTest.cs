@@ -10,7 +10,7 @@ namespace JetBrains.SymbolStorage.Tests
     [TestMethod]
     public void DosDateTest()
     {
-      Assert.ThrowsException<Exception>(() => new DateTime(1979, 12, 31).ToDosDate());
+      Assert.ThrowsException<ArgumentOutOfRangeException>(() => new DateTime(1979, 12, 31).ToDosDate());
       Assert.AreEqual((ushort) 0x21, new DateTime(1980, 1, 1).ToDosDate());
       Assert.AreEqual((ushort) 0x5275, new DateTime(2021, 3, 21).ToDosDate());
     }
