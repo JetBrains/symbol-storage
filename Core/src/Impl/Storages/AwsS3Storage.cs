@@ -11,7 +11,6 @@ using Amazon.CloudFront;
 using Amazon.CloudFront.Model;
 using Amazon.S3;
 using Amazon.S3.Model;
-using JetBrains.Annotations;
 using ThirdParty.MD5;
 
 namespace JetBrains.SymbolStorage.Impl.Storages
@@ -241,7 +240,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           yield return new ChildrenItem
           {
             Name = s3Object.Key.NormalizeSystem(),
-            Size = (mode & ChildrenMode.WithSize) != 0 && s3Object.Size.HasValue ? s3Object.Size.Value : -1
+            Size = (mode & ChildrenMode.WithSize) != 0 ? s3Object.Size : null
           };
         }
 

@@ -1,10 +1,11 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
-using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl;
 using JetBrains.SymbolStorage.Impl.Commands;
 using JetBrains.SymbolStorage.Impl.Logger;
@@ -33,7 +34,7 @@ namespace JetBrains.SymbolStorage
     //   128+n - Fatal error signal “n”
     //   130   - Script terminated by Control-C
     //   255\* - Exit status out of range
-    public static byte Main(Assembly mainAssembly, [Annotations.NotNull] string[] args, MainMode mode)
+    public static byte Main(Assembly mainAssembly, string[] args, MainMode mode)
     {
       try
       {
@@ -311,13 +312,13 @@ namespace JetBrains.SymbolStorage
     }
 
     [return: NotNullIfNotNull(nameof(defaultDays))]
-    private static TimeSpan? ParseDays([CanBeNull] string days, TimeSpan? defaultDays) => days != null ? TimeSpan.FromDays(ulong.Parse(days)) : defaultDays;
+    private static TimeSpan? ParseDays(string? days, TimeSpan? defaultDays) => days != null ? TimeSpan.FromDays(ulong.Parse(days)) : defaultDays;
 
-    private static bool? ParseProtected([CanBeNull] string value, [Annotations.NotNull] string defaultValue) => value != null
+    private static bool? ParseProtected(string? value, string defaultValue) => value != null
       ? AccessUtil.GetProtectedValue(value)
       : AccessUtil.GetProtectedValue(defaultValue);
 
-    private static async Task<IReadOnlyCollection<string>> ParsePaths([Annotations.NotNull] IEnumerable<string> paths)
+    private static async Task<IReadOnlyCollection<string>> ParsePaths(IEnumerable<string> paths)
     {
       if (paths == null)
         throw new ArgumentNullException(nameof(paths));
@@ -326,7 +327,7 @@ namespace JetBrains.SymbolStorage
         if (path.StartsWith('@'))
         {
           using var reader = new StreamReader(path.Substring(1));
-          string line;
+          string? line;
           while ((line = await reader.ReadLineAsync()) != null)
             if (line.Length != 0)
               res.Add(line);

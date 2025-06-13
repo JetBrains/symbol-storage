@@ -1,8 +1,9 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
-using JetBrains.Annotations;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
@@ -14,18 +15,17 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     private readonly List<Regex> myIncludeVersionRegexs;
 
     public IdentityFilter(
-      [NotNull] IEnumerable<string> incProductWildcards,
-      [NotNull] IEnumerable<string> excProductWildcards,
-      [NotNull] IEnumerable<string> incVersionWildcards,
-      [NotNull] IEnumerable<string> excVersionWildcards)
+      IEnumerable<string> incProductWildcards,
+      IEnumerable<string> excProductWildcards,
+      IEnumerable<string> incVersionWildcards,
+      IEnumerable<string> excVersionWildcards)
     {
       if (incProductWildcards == null) throw new ArgumentNullException(nameof(incProductWildcards));
       if (excProductWildcards == null) throw new ArgumentNullException(nameof(excProductWildcards));
       if (incVersionWildcards == null) throw new ArgumentNullException(nameof(incVersionWildcards));
       if (excVersionWildcards == null) throw new ArgumentNullException(nameof(excVersionWildcards));
 
-      [NotNull]
-      static string ConvertWildcardToRegex([NotNull] string str) => "^" + Regex.Escape(str).Replace("\\?", ".").Replace("\\*", ".*") + "$";
+      static string ConvertWildcardToRegex(string str) => "^" + Regex.Escape(str).Replace("\\?", ".").Replace("\\*", ".*") + "$";
 
       myIncludeProductRegexs = incProductWildcards.Select(x =>
         {
@@ -61,7 +61,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
         }).ToList();
     }
 
-    public bool IsMatch([NotNull] string product, [NotNull] string version) =>
+    public bool IsMatch(string product, string version) =>
       (myIncludeProductRegexs.Count == 0 || myIncludeProductRegexs.Any(x => x.IsMatch(product))) && myExcludeProductRegexs.All(x => !x.IsMatch(product)) &&
       (myIncludeVersionRegexs.Count == 0 || myIncludeVersionRegexs.Any(x => x.IsMatch(version))) && myExcludeVersionRegexs.All(x => !x.IsMatch(version));
   }

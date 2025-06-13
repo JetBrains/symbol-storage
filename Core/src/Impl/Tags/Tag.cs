@@ -1,6 +1,7 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using System.Runtime.Serialization;
-using JetBrains.Annotations;
 using Newtonsoft.Json;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
@@ -13,9 +14,8 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     [IgnoreDataMember]
     public DateTime CreationUtcTime;
 
-    [CanBeNull]
     [DataMember(Order = 1000, IsRequired = true)]
-    public string[] Directories;
+    public string[]? Directories;
 
     [IgnoreDataMember]
     public Guid FileId;
@@ -23,21 +23,17 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     [DataMember(Order = 11, EmitDefaultValue = false)]
     public bool IsProtected;
 
-    [CanBeNull]
     [DataMember(Order = 2, IsRequired = true)]
-    public string Product;
+    public string? Product;
 
-    [CanBeNull]
     [DataMember(Order = 100)]
-    public TagKeyValue[] Properties;
+    public TagKeyValue[]? Properties;
 
-    [CanBeNull]
     [DataMember(Order = 0, IsRequired = true)]
-    public string ToolId;
+    public string? ToolId;
 
-    [CanBeNull]
     [DataMember(Order = 3, IsRequired = true)]
-    public string Version;
+    public string? Version;
 
     [DataMember(Order = 10, Name = nameof(CreationUtcTime))]
     public string _CreationUtcTime
