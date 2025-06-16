@@ -4,7 +4,7 @@ using Microsoft.SymbolStore;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed partial class Scanner
+  internal sealed partial class LocalFilesScanner
   {
     private sealed class Tracer : ITracer
     {

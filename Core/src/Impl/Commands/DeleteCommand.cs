@@ -31,11 +31,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      var validator = new Validator(myLogger, myStorage);
+      var validator = new StorageManager(myLogger, myStorage);
       var storageFormat = await validator.ValidateStorageMarkersAsync();
 
       long deleteTags;
-      IReadOnlyCollection<KeyValuePair<string, Tag>> tagItems;
+      List<TaggedFile> tagItems;
       {
         var (incTagItems, excTagItems) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, mySafetyPeriod, false);
         validator.DumpProducts(incTagItems);
@@ -45,7 +45,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         myLogger.Info($"[{DateTime.Now:s}] Deleting tag files...");
         await incTagItems.ParallelForAsync(myDegreeOfParallelism, async tagItem =>
           {
-            var file = tagItem.Key;
+            var file = tagItem.TagFile;
             myLogger.Info($"  Deleting {file}");
             await myStorage.DeleteAsync(file);
           });
@@ -54,8 +54,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
 
       {
-        var (_, files) = await validator.GatherDataFilesAsync();
-        var (statistics, deleted) = await validator.ValidateAsync(myDegreeOfParallelism, tagItems, files, storageFormat, Validator.ValidateMode.Delete);
+        var (files, _) = await validator.GatherDataFilesAsync();
+        var (statistics, deleted) = await validator.ValidateAndFixAsync(myDegreeOfParallelism, tagItems, files, storageFormat, StorageManager.ValidateMode.Delete);
         if (deleted > 0)
           await myStorage.InvalidateExternalServicesAsync();
         myLogger.Info($"[{DateTime.Now:s}] Done (deleted tag files: {deleteTags}, deleted data files: {deleted}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");

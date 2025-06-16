@@ -33,7 +33,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      var validator = new Validator(myLogger, myStorage);
+      var validator = new StorageManager(myLogger, myStorage);
       var (tagItems, _) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, myMinItemAgeFilter, myProtectedFilter);
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);

@@ -39,7 +39,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public async Task<int> ExecuteAsync()
     {
       var map = new ConcurrentBag<KeyValuePair<string, string>>();
-      var statistics = await new Scanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, false, mySources,
+      var statistics = await new LocalFilesScanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, false, mySources,
         (_, _, srcFile, dstFile) =>
           {
             map.Add(KeyValuePair.Create(srcFile, dstFile));

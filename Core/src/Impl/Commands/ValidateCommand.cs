@@ -29,13 +29,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      var validator = new Validator(myLogger, myStorage);
+      var validator = new StorageManager(myLogger, myStorage);
       var storageFormat = await validator.ValidateStorageMarkersAsync();
       var tagItems = await validator.LoadTagItemsAsync(myDegreeOfParallelism);
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);
-      var (totalSize, files) = await validator.GatherDataFilesAsync();
-      var (statistics, _) = await validator.ValidateAsync(myDegreeOfParallelism, tagItems, files, storageFormat, myFix ? Validator.ValidateMode.Fix : Validator.ValidateMode.Validate, myVerifyAcl);
+      var (files, totalSize) = await validator.GatherDataFilesAsync();
+      var (statistics, _) = await validator.ValidateAndFixAsync(myDegreeOfParallelism, tagItems, files, storageFormat, myFix ? StorageManager.ValidateMode.Fix : StorageManager.ValidateMode.Validate, myVerifyAcl);
       if (statistics.Fixes > 0)
         await myStorage.InvalidateExternalServicesAsync();
       myLogger.Info($"[{DateTime.Now:s}] Done (size: {totalSize.ToKibibyte()}, warnings: {statistics.Warnings}, errors: {statistics.Errors}, fixes: {statistics.Fixes})");
