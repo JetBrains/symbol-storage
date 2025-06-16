@@ -9,7 +9,7 @@ using Microsoft.SymbolStore.KeyGenerators;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed partial class Scanner
+  internal sealed partial class LocalFilesScanner
   {
     private readonly int myDegreeOfParallelism;
     private readonly string? myBaseDir;
@@ -21,7 +21,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly Func<ITracer, string, string, string, Task> myProcessCompressed;
     private readonly IEnumerable<string> mySources;
 
-    public Scanner(
+    public LocalFilesScanner(
       ILogger logger,
       int degreeOfParallelism,
       bool compressPe,

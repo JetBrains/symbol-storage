@@ -23,7 +23,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      var validator = new Validator(myLogger, myStorage);
+      var validator = new StorageManager(myLogger, myStorage);
       await validator.CreateStorageMarkersAsync(myNewStorageFormat);
       myLogger.Info($"[{DateTime.Now:s}] Done");
       return 0;
