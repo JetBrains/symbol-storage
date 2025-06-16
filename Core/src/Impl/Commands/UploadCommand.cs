@@ -74,18 +74,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// <returns>List of files and a flag that everything is OK</returns>
     private async Task<(List<string> files, bool valid)> ValidateAndLoadFilesListFromStorage(IStorage srcStorage)
     {
-      var validator = new Validator(myLogger, srcStorage, "Source");
+      var validator = new StorageManager(myLogger, srcStorage, "Source");
       var srcStorageFormat = await validator.ValidateStorageMarkersAsync();
 
       var tagItems = await validator.LoadTagItemsAsync(myDegreeOfParallelism);
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);
-      var (totalSize, files) = await validator.GatherDataFilesAsync();
-      var (statistics, _) = await validator.ValidateAsync(myDegreeOfParallelism, tagItems, files, srcStorageFormat, Validator.ValidateMode.Validate);
+      var (files, totalSize) = await validator.GatherDataFilesAsync();
+      var (statistics, _) = await validator.ValidateAndFixAsync(myDegreeOfParallelism, tagItems, files, srcStorageFormat, StorageManager.ValidateMode.Validate);
       myLogger.Info($"[{DateTime.Now:s}] Done with source validation (size: {totalSize.ToKibibyte()}, files: {files.Count + tagItems.Count}, warnings: {statistics.Warnings}, errors: {statistics.Errors})");
 
       var srcFiles = new List<string>(tagItems.Count + files.Count);
-      srcFiles.AddRange(tagItems.Select(x => x.Key));
+      srcFiles.AddRange(tagItems.Select(x => x.TagFile));
       srcFiles.AddRange(files);
       return (srcFiles, !statistics.HasProblems);
     }
@@ -99,7 +99,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// <returns>List of files to upload + validation result</returns>
     private async Task<(List<(string src, string dst)> srcDstPairs, bool valid)> BuildFilesListForUploading(IStorage srcStorage, List<string> srcFiles)
     {
-      var dstValidator = new Validator(myLogger, myStorage, "Destination");
+      var dstValidator = new StorageManager(myLogger, myStorage, "Destination");
       var dstStorageFormat = await dstValidator.CreateOrValidateStorageMarkersAsync(myNewStorageFormat);
 
       myLogger.Info($"[{DateTime.Now:s}] Checking file compatibility...");

@@ -6,7 +6,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 {
   internal static class StorageUtil
   {
-    private static readonly MemoryStream ourEmptyStream = new(Array.Empty<byte>(), false);
+    private static readonly MemoryStream ourEmptyStream = new([], false);
 
     public static Task CreateEmptyAsync(this IStorage storage, string file, AccessMode mode) => storage.CreateForWritingAsync(file, mode, ourEmptyStream);
   }

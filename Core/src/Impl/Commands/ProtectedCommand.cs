@@ -31,7 +31,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      var validator = new Validator(myLogger, myStorage);
+      var validator = new StorageManager(myLogger, myStorage);
       await validator.ValidateStorageMarkersAsync();
       var (tagItems, _) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, null, !myIsProtected);
       validator.DumpProducts(tagItems);
@@ -40,17 +40,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myLogger.Info($"[{DateTime.Now:s}] Updating tag files");
       await tagItems.ParallelForAsync(myDegreeOfParallelism, async tagItem =>
         {
-          var tagFile = tagItem.Key;
+          var tagFile = tagItem.TagFile;
           myLogger.Verbose($"  Updating {tagFile}...");
 
-          var tag = tagItem.Value.Clone();
+          var tag = tagItem.Tag.Clone();
           tag.IsProtected = myIsProtected;
          
-          await using var stream = new MemoryStream();
+          using var stream = new MemoryStream();
           await TagUtil.WriteTagScriptAsync(tag, stream);
           await myStorage.CreateForWritingAsync(tagFile, AccessMode.Private, stream);
         });
-     myLogger.Info($"[{DateTime.Now:s}] Done (tags: {tagItems.Count})");
+      myLogger.Info($"[{DateTime.Now:s}] Done (tags: {tagItems.Count})");
       return 0;
     }
   }

@@ -56,10 +56,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      await new Validator(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
+      await new StorageManager(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
 
       var dstFiles = new ConcurrentDictionary<string, bool>();
-      var statistics = await new Scanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
+      var statistics = await new LocalFilesScanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
         async (tracer, srcDir, srcFile, dstFile) =>
           {
             if (dstFiles.TryAdd(dstFile, false))
