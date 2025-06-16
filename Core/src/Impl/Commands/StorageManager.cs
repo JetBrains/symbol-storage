@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,14 +10,14 @@ using JetBrains.SymbolStorage.Impl.Tags;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class Validator
+  internal sealed class StorageManager
   {
-    private readonly string? myId;
+    private readonly string myId;
 
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
 
-    public Validator(ILogger logger, IStorage storage, string? id = null)
+    public StorageManager(ILogger logger, IStorage storage, string? id = null)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -37,7 +36,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       myLogger.Info($"[{DateTime.Now:s}] Creating storage markers{myId}...");
       if (!await myStorage.IsEmptyAsync())
-        throw new Exception("The empty storage is expected");
+        throw new InvalidOperationException("The empty storage is expected");
       var files = new List<string> {Markers.SingleTier};
       switch (newStorageFormat)
       {
@@ -82,52 +81,50 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       throw new ApplicationException("The storage wasn't properly configured, both lower and upper case were presented");
     }
 
-    public Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> LoadTagItemsAsync(int degreeOfParallelism)
+    public Task<List<TaggedFile>> LoadTagItemsAsync(int degreeOfParallelism)
     {
       myLogger.Info($"[{DateTime.Now:s}] Loading tag files{myId}...");
       return myStorage.GetAllTagScriptsAsync(degreeOfParallelism, x => myLogger.Verbose($"  Loading {x}"));
     }
     
-    public async Task<Tuple<IReadOnlyCollection<KeyValuePair<string, Tag>>, IReadOnlyCollection<KeyValuePair<string, Tag>>>> LoadTagItemsAsync(
+    public async Task<(List<TaggedFile> included, List<TaggedFile> excluded)> LoadTagItemsAsync(
       int degreeOfParallelism,
       IdentityFilter identityFilter,
       TimeSpan? minItemAgeFilter,
       bool? protectedFilter)
     {
-      if (identityFilter == null)
-        throw new ArgumentNullException(nameof(identityFilter));
       var tagItems = await LoadTagItemsAsync(degreeOfParallelism);
-      var inc = new List<KeyValuePair<string, Tag>>();
-      var exc = new List<KeyValuePair<string, Tag>>();
+      var included = new List<TaggedFile>();
+      var excluded = new List<TaggedFile>();
       foreach (var tagItem in tagItems)
       {
-        var tag = tagItem.Value;
+        var tag = tagItem.Tag;
         if (identityFilter.IsMatch(tag.Product ?? "", tag.Version ?? "") &&
             (minItemAgeFilter == null || tag.CreationUtcTime + minItemAgeFilter.Value < DateTime.UtcNow) &&
             (protectedFilter == null || protectedFilter == tag.IsProtected))
-          inc.Add(tagItem);
+          included.Add(tagItem);
         else
-          exc.Add(tagItem);
+          excluded.Add(tagItem);
       }
 
-      return new(inc, exc);
+      return (included, excluded);
     }
 
-    public void DumpProducts(IEnumerable<KeyValuePair<string, Tag>> tagItems)
+    public void DumpProducts(IEnumerable<TaggedFile> tagItems)
     {
       myLogger.Info($"[{DateTime.Now:s}] Tags{myId}...");
-      foreach (var product in tagItems.OrderBy(x => x.Value.Product, StringComparer.Ordinal).ThenBy(x => x.Value.Version, StringComparer.Ordinal).GroupBy(x => x.Value.Product))
+      foreach (var product in tagItems.OrderBy(x => x.Tag.Product, StringComparer.Ordinal).ThenBy(x => x.Tag.Version, StringComparer.Ordinal).GroupBy(x => x.Tag.Product, StringComparer.Ordinal))
       {
         myLogger.Info($"  {product.Key}");
-        foreach (var version in product.GroupBy(x => x.Value.Version))
-          myLogger.Info($"    {version.Key}");
+        foreach (var version in product.Select(x => x.Tag.Version).Distinct(StringComparer.Ordinal))
+          myLogger.Info($"    {version}");
       }
     }
 
-    public void DumpProperties(IEnumerable<KeyValuePair<string, Tag>> tagItems)
+    public void DumpProperties(IEnumerable<TaggedFile> tagItems)
     {
       myLogger.Info($"[{DateTime.Now:s}] Tag properties{myId}...");
-      foreach (var property in tagItems.SelectMany(x => x.Value.Properties ?? []).OrderBy(x => x.Key, StringComparer.Ordinal).ThenBy(x => x.Value, StringComparer.Ordinal).GroupBy(x => x.Key))
+      foreach (var property in tagItems.SelectMany(x => x.Tag.Properties ?? []).OrderBy(x => x.Key, StringComparer.Ordinal).ThenBy(x => x.Value, StringComparer.Ordinal).GroupBy(x => x.Key, StringComparer.Ordinal))
       {
         myLogger.Info($"  {property.Key}");
         foreach (var value in property.Select(x => x.Value).Distinct())
@@ -142,10 +139,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       Delete
     }
 
-    public async Task<Tuple<Statistics, long>> ValidateAsync(
+    public async Task<(Statistics statistics, long deleted)> ValidateAndFixAsync(
       int degreeOfParallelism,
-      IEnumerable<KeyValuePair<string, Tag>> items,
-      IReadOnlyCollection<string> files,
+      IEnumerable<TaggedFile> items,
+      IEnumerable<string> files,
       StorageFormat storageFormat,
       ValidateMode mode,
       bool verifyAcl = false)
@@ -154,12 +151,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var fix = mode == ValidateMode.Fix || mode == ValidateMode.Delete;
       var statistics = new Statistics();
       ILogger logger = new LoggerWithStatistics(myLogger, statistics);
-      files = await ValidateDataFilesAsync(logger, degreeOfParallelism, files, storageFormat, fix);
+      files = await ValidateAndFixDataFilesAsync(logger, degreeOfParallelism, files, storageFormat, fix);
       var tree = CreateDirectoryTree(degreeOfParallelism, files);
       await items.ParallelForAsync(degreeOfParallelism, async item =>
         {
-          var tagFile = item.Key;
-          var tag = item.Value;
+          var tagFile = item.TagFile;
+          var tag = item.Tag;
           logger.Verbose($"  Validating {tagFile}");
           var isDirty = false;
 
@@ -217,7 +214,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
                 break;
               default:
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentException("Unknown ValidateAndFixErrors value");
               }
 
               var dstDir = dir.ValidateAndFixDataPath(storageFormat, out fixedDir) == PathUtil.ValidateAndFixErrors.CanBeFixed ? fixedDir : dir;
@@ -233,16 +230,16 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           if (isDirty)
           {
             logger.Info($"The tag file {tagFile} will be overwritten");
-            await using var stream = new MemoryStream();
+            using var stream = new MemoryStream();
             await TagUtil.WriteTagScriptAsync(tag, stream);
             await myStorage.CreateForWritingAsync(tagFile, AccessMode.Private, stream);
           }
         });
 
-      var deleted = await ValidateUnreachableAsync(logger, tree, mode);
+      var deleted = await ValidateAndDeleteUnreachableAsync(logger, tree, mode);
       if (verifyAcl)
-        await ValidateAclAsync(logger, degreeOfParallelism, files, fix);
-      return Tuple.Create(statistics, deleted);
+        await ValidateAndFixAclAsync(logger, degreeOfParallelism, files, fix);
+      return (statistics, deleted);
     }
 
     private static DateTime? TryFixCreationTime(Tag tag)
@@ -272,7 +269,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return null;
     }
 
-    private async Task ValidateAclAsync(ILogger logger, int degreeOfParallelism, IEnumerable<string> files, bool fix)
+    private async Task ValidateAndFixAclAsync(ILogger logger, int degreeOfParallelism, IEnumerable<string> files, bool fix)
     {
       if (!myStorage.SupportAccessMode)
       {
@@ -311,7 +308,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         });
     }
 
-    private async Task<IReadOnlyCollection<string>> ValidateDataFilesAsync(
+    private async Task<List<string>> ValidateAndFixDataFilesAsync(
       ILogger logger,
       int degreeOfParallelism,
       IEnumerable<string> files,
@@ -320,32 +317,41 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       logger.Info($"[{DateTime.Now:s}] Validating data files{myId}...");
 
-      var res = new ConcurrentBag<string>();
+      var res = files.TryGetNonEnumeratedCount(out var expectedCount) ? new List<string>(expectedCount) : new List<string>();
+      var resSyncObj = new Lock();
       await files.ParallelForAsync(degreeOfParallelism, async file =>
         {
           logger.Verbose($"  Validating {file}");
+          string finalFile;
           switch (file.ValidateAndFixDataPath(storageFormat, out var fixedFile))
           {
           case PathUtil.ValidateAndFixErrors.Ok:
-            res.Add(file);
+            finalFile = file;
             break;
           case PathUtil.ValidateAndFixErrors.Error:
             logger.Error($"Found unexpected file {file} location");
-            goto case PathUtil.ValidateAndFixErrors.Ok;
+            finalFile = file;
+            break;
           case PathUtil.ValidateAndFixErrors.CanBeFixed:
             logger.Error($"Found unexpected file {file} location");
             if (fix)
             {
               logger.Fix($"Rename file {file} to file {fixedFile}");
               await myStorage.RenameAsync(file, fixedFile, AccessMode.Public);
-              res.Add(fixedFile);
+              finalFile = fixedFile;
             }
             else
-              res.Add(file);
-
+            {
+              finalFile = file;
+            }
             break;
           default:
-            throw new ArgumentOutOfRangeException();
+            throw new ArgumentException("Unknown ValidateAndFixErrors value");
+          }
+          
+          lock (resSyncObj)
+          {
+            res.Add(finalFile);
           }
         });
 
@@ -367,7 +373,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return tree.Build();
     }
 
-    private async Task<long> ValidateUnreachableAsync(ILogger logger, PathTree tree, ValidateMode mode)
+    private async Task<long> ValidateAndDeleteUnreachableAsync(ILogger logger, PathTree tree, ValidateMode mode)
     {
       logger.Info(mode == ValidateMode.Delete
         ? $"[{DateTime.Now:s}] Delete unreachable files{myId}..."
@@ -410,7 +416,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return deleted;
     }
 
-    public async Task<Tuple<long, IReadOnlyCollection<string>>> GatherDataFilesAsync()
+    public async Task<(List<string> files, long totalSize)> GatherDataFilesAsync()
     {
       myLogger.Info($"[{DateTime.Now:s}] Gathering data files{myId}...");
       long totalSize = 0;
@@ -420,7 +426,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             Interlocked.Add(ref totalSize, x.Size.Value);
           return x.Name;
         }).Where(TagUtil.IsDataFile).ToListAsync();
-      return new Tuple<long, IReadOnlyCollection<string>>(totalSize, files);
+      return (files, totalSize);
     }
   }
 }

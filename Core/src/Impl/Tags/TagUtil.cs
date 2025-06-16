@@ -54,7 +54,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       await writer.WriteAsync(str);
     }
 
-    public static async Task<IReadOnlyCollection<KeyValuePair<string, Tag>>> GetAllTagScriptsAsync(
+    public static async Task<List<TaggedFile>> GetAllTagScriptsAsync(
       this IStorage storage,
       int degreeOfParallelism,
       Action<string>? progress = null)
@@ -65,7 +65,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
         {
           var file = item.Name;
           progress?.Invoke(file);
-          return new KeyValuePair<string, Tag>(file, await storage.OpenForReadingAsync(file, ReadTagScriptAsync));
+          return new TaggedFile(file, await storage.OpenForReadingAsync(file, ReadTagScriptAsync));
         });
     }
 
