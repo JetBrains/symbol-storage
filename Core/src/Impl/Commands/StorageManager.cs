@@ -81,21 +81,21 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       throw new ApplicationException("The storage wasn't properly configured, both lower and upper case were presented");
     }
 
-    public Task<List<TaggedFile>> LoadTagItemsAsync(int degreeOfParallelism)
+    public Task<List<TagFileData>> LoadTagItemsAsync(int degreeOfParallelism)
     {
       myLogger.Info($"[{DateTime.Now:s}] Loading tag files{myId}...");
       return myStorage.GetAllTagScriptsAsync(degreeOfParallelism, x => myLogger.Verbose($"  Loading {x}"));
     }
     
-    public async Task<(List<TaggedFile> included, List<TaggedFile> excluded)> LoadTagItemsAsync(
+    public async Task<(List<TagFileData> included, List<TagFileData> excluded)> LoadTagItemsAsync(
       int degreeOfParallelism,
       IdentityFilter identityFilter,
       TimeSpan? minItemAgeFilter,
       bool? protectedFilter)
     {
       var tagItems = await LoadTagItemsAsync(degreeOfParallelism);
-      var included = new List<TaggedFile>();
-      var excluded = new List<TaggedFile>();
+      var included = new List<TagFileData>();
+      var excluded = new List<TagFileData>();
       foreach (var tagItem in tagItems)
       {
         var tag = tagItem.Tag;
@@ -110,7 +110,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return (included, excluded);
     }
 
-    public void DumpProducts(IEnumerable<TaggedFile> tagItems)
+    public void DumpProducts(IEnumerable<TagFileData> tagItems)
     {
       myLogger.Info($"[{DateTime.Now:s}] Tags{myId}...");
       foreach (var product in tagItems.OrderBy(x => x.Tag.Product, StringComparer.Ordinal).ThenBy(x => x.Tag.Version, StringComparer.Ordinal).GroupBy(x => x.Tag.Product, StringComparer.Ordinal))
@@ -121,7 +121,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
     }
 
-    public void DumpProperties(IEnumerable<TaggedFile> tagItems)
+    public void DumpProperties(IEnumerable<TagFileData> tagItems)
     {
       myLogger.Info($"[{DateTime.Now:s}] Tag properties{myId}...");
       foreach (var property in tagItems.SelectMany(x => x.Tag.Properties ?? []).OrderBy(x => x.Key, StringComparer.Ordinal).ThenBy(x => x.Value, StringComparer.Ordinal).GroupBy(x => x.Key, StringComparer.Ordinal))
@@ -141,7 +141,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<(Statistics statistics, long deleted)> ValidateAndFixAsync(
       int degreeOfParallelism,
-      IEnumerable<TaggedFile> items,
+      IEnumerable<TagFileData> items,
       IEnumerable<string> files,
       StorageFormat storageFormat,
       ValidateMode mode,

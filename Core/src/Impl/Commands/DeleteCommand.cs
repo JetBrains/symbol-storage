@@ -35,7 +35,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var storageFormat = await validator.ValidateStorageMarkersAsync();
 
       long deleteTags;
-      List<TaggedFile> tagItems;
+      List<TagFileData> tagItems;
       {
         var (incTagItems, excTagItems) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, mySafetyPeriod, false);
         validator.DumpProducts(incTagItems);
