@@ -1,16 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
   internal sealed class IdentityFilter
   {
-    private readonly List<Regex> myExcludeProductRegexs;
-    private readonly List<Regex> myExcludeVersionRegexs;
-    private readonly List<Regex> myIncludeProductRegexs;
-    private readonly List<Regex> myIncludeVersionRegexs;
+    private readonly Regex? myExcludeProductRegex;
+    private readonly Regex? myExcludeVersionRegex;
+    private readonly Regex? myIncludeProductRegex;
+    private readonly Regex? myIncludeVersionRegex;
 
     public IdentityFilter(
       IEnumerable<string> incProductWildcards,
@@ -23,44 +24,42 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       if (incVersionWildcards == null) throw new ArgumentNullException(nameof(incVersionWildcards));
       if (excVersionWildcards == null) throw new ArgumentNullException(nameof(excVersionWildcards));
 
-      static string ConvertWildcardToRegex(string str) => "^" + Regex.Escape(str).Replace("\\?", ".").Replace("\\*", ".*") + "$";
+      myExcludeProductRegex = BuildRegex("product exclude", excProductWildcards, TagUtil.ValidateProductWildcard);
+      myExcludeVersionRegex = BuildRegex("version exclude", excVersionWildcards, TagUtil.ValidateVersionWildcard);
+      myIncludeProductRegex = BuildRegex("product include", incProductWildcards, TagUtil.ValidateProductWildcard);
+      myIncludeVersionRegex = BuildRegex("version include", incVersionWildcards, TagUtil.ValidateVersionWildcard);
+    }
+    
+    private static string ConvertWildcardToRegex(string str) => Regex.Escape(str).Replace("\\?", ".").Replace("\\*", ".*");
+    private static Regex? BuildRegex(string name, IEnumerable<string> wildcards, Func<string, bool> validator)
+    {
+      int count = 0;
+      StringBuilder builder = new StringBuilder();
+      foreach (var wildcard in wildcards)
+      {
+        if (!validator(wildcard))
+          throw new ArgumentException($"Invalid {name} wildcard: '{wildcard}'", nameof(wildcards));
 
-      myIncludeProductRegexs = incProductWildcards.Select(x =>
-        {
-          if (x == null)
-            throw new ArgumentNullException(nameof(incProductWildcards));
-          if (!TagUtil.ValidateProductWildcard(x))
-            throw new ArgumentException($"Invalid product name include wildcard {x}", nameof(incProductWildcards));
-          return new Regex(ConvertWildcardToRegex(x));
-        }).ToList();
-      myExcludeProductRegexs = excProductWildcards.Select(x =>
-        {
-          if (x == null)
-            throw new ArgumentNullException(nameof(incProductWildcards));
-          if (!TagUtil.ValidateProductWildcard(x))
-            throw new ArgumentException($"Invalid product name exclude wildcard {x}", nameof(excProductWildcards));
-          return new Regex(ConvertWildcardToRegex(x));
-        }).ToList();
-      myIncludeVersionRegexs = incVersionWildcards.Select(x =>
-        {
-          if (x == null)
-            throw new ArgumentNullException(nameof(incProductWildcards));
-          if (!TagUtil.ValidateVersionWildcard(x))
-            throw new ArgumentException($"Invalid version include wildcard {x}", nameof(incVersionWildcards));
-          return new Regex(ConvertWildcardToRegex(x));
-        }).ToList();
-      myExcludeVersionRegexs = excVersionWildcards.Select(x =>
-        {
-          if (x == null)
-            throw new ArgumentNullException(nameof(incProductWildcards));
-          if (!TagUtil.ValidateVersionWildcard(x))
-            throw new ArgumentException($"Invalid version exclude wildcard {x}", nameof(excVersionWildcards));
-          return new Regex(ConvertWildcardToRegex(x));
-        }).ToList();
+        if (count == 0)
+          builder.Append("^(?:(?:");
+        else if (count >= 1)
+          builder.Append(")|(?:");
+
+        builder.Append(ConvertWildcardToRegex(wildcard));
+        count++;
+      }
+
+      if (count == 0)
+        return null;
+
+      builder.Append("))$");
+      return new Regex(builder.ToString(), RegexOptions.Compiled);
     }
 
     public bool IsMatch(string product, string version) =>
-      (myIncludeProductRegexs.Count == 0 || myIncludeProductRegexs.Any(x => x.IsMatch(product))) && myExcludeProductRegexs.All(x => !x.IsMatch(product)) &&
-      (myIncludeVersionRegexs.Count == 0 || myIncludeVersionRegexs.Any(x => x.IsMatch(version))) && myExcludeVersionRegexs.All(x => !x.IsMatch(version));
+      (myIncludeProductRegex == null || myIncludeProductRegex.IsMatch(product)) &&
+      (myExcludeProductRegex == null || !myExcludeProductRegex.IsMatch(product)) &&
+      (myIncludeVersionRegex == null || myIncludeVersionRegex.IsMatch((version))) &&
+      (myExcludeVersionRegex == null || !myExcludeVersionRegex.IsMatch((version)));
   }
 }
