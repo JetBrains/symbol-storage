@@ -49,5 +49,22 @@ namespace JetBrains.SymbolStorage.Tests
       Assert.IsFalse(identityFilter.IsMatch("akkama", "ab98324jc"));
       Assert.IsFalse(identityFilter.IsMatch("aakakkaamama", "a23454bc"));
     }
+        
+    [TestMethod]
+    public void TestMultipleWildcards()
+    {
+      var identityFilter = new IdentityFilter(
+        new[] {"*k*m*", "cm", "dm"},
+        new[] {"*kk*"},
+        new[] {"a*2*c", "a*3*c"},
+        []);
+      Assert.IsTrue(identityFilter.IsMatch("km", "ab182653c"));
+      Assert.IsTrue(identityFilter.IsMatch("cm", "ab182653c"));
+      Assert.IsTrue(identityFilter.IsMatch("dm", "a3c"));
+      Assert.IsTrue(identityFilter.IsMatch("akama", "ab98324jc"));
+      Assert.IsFalse(identityFilter.IsMatch("akkama", "ab98324jc"));
+      Assert.IsFalse(identityFilter.IsMatch("aakakkaamama", "a23454bc"));
+      Assert.IsFalse(identityFilter.IsMatch("ddm", "ab182653c"));
+    }
   }
 }
