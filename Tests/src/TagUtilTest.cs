@@ -154,6 +154,7 @@ namespace JetBrains.SymbolStorage.Tests
       var tag = await TagUtil.ReadTagScriptAsync(new MemoryStream(Encoding.UTF8.GetBytes(tagStr)));
       Assert.AreEqual("SymbolStorageMaker/1.2.4", tag.ToolId);
       Assert.AreEqual("3.1.20201006.7", tag.Version);
+      Assert.AreEqual(Guid.Parse("a0919f17-a32e-4a4a-9651-ba66ca868cf2"), tag.FileId);
       Assert.AreEqual(DateTime.MinValue, tag.CreationUtcTime);
       
       Assert.IsNotNull(tag.Properties);
@@ -169,23 +170,23 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task SerializeTagTest()
     {
       var tagStr = """
-                {
-                  "ToolId": "SymbolStorageMaker/1.2.4",
-                  "FileId": "a0919f17-a32e-4a4a-9651-ba66ca868cf2",
-                  "Product": "coreclr",
-                  "Version": "3.1.20201006.7",
-                  "CreationUtcTime": "2025-06-17T15:45:45",
-                  "Properties": [
-                    {
-                      "Key": "MadeIn",
-                      "Value": "JetBrains"
-                    }
-                  ],
-                  "Directories": [
-                    "_.dwarf/mach-uuid-sym-1b7f1c87fcc5342e8af350af7e67d408"
-                  ]
-                }
-                """.Replace(" ", "").Replace("\r", "").Replace("\n", "");
+                   {
+                     "ToolId": "SymbolStorageMaker/1.2.4",
+                     "FileId": "a0919f17-a32e-4a4a-9651-ba66ca868cf2",
+                     "Product": "coreclr",
+                     "Version": "3.1.20201006.7",
+                     "CreationUtcTime": "2025-06-17T15:45:45",
+                     "Properties": [
+                       {
+                         "Key": "MadeIn",
+                         "Value": "JetBrains"
+                       }
+                     ],
+                     "Directories": [
+                       "_.dwarf/mach-uuid-sym-1b7f1c87fcc5342e8af350af7e67d408"
+                     ]
+                   }
+                   """;
       
       var tag = await TagUtil.ReadTagScriptAsync(new MemoryStream(Encoding.UTF8.GetBytes(tagStr)));
       Assert.AreEqual("SymbolStorageMaker/1.2.4", tag.ToolId);
@@ -201,7 +202,7 @@ namespace JetBrains.SymbolStorage.Tests
       await TagUtil.WriteTagScriptAsync(tag, resultData);
 
       resultData.Position = 0;
-      var resultJson = new StreamReader(resultData, detectEncodingFromByteOrderMarks: true).ReadToEnd().Replace(" ", "").Replace("\r", "").Replace("\n", "");
+      var resultJson = new StreamReader(resultData, detectEncodingFromByteOrderMarks: true).ReadToEnd();
       Assert.AreEqual(tagStr, resultJson);
     }
   }
