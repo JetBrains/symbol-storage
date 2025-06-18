@@ -1,50 +1,67 @@
 ﻿using System;
-using System.Runtime.Serialization;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
-  [DataContract]
-  [Serializable]
-  [JsonObject]
-  internal sealed class Tag
+  internal sealed record Tag
   {
-    [IgnoreDataMember]
-    public DateTime CreationUtcTime;
-
-    [DataMember(Order = 1000, IsRequired = true)]
-    public string[]? Directories;
-
-    [IgnoreDataMember]
-    public Guid FileId;
-
-    [DataMember(Order = 11, EmitDefaultValue = false)]
-    public bool IsProtected;
-
-    [DataMember(Order = 2, IsRequired = true)]
-    public string? Product;
-
-    [DataMember(Order = 100)]
-    public TagKeyValue[]? Properties;
-
-    [DataMember(Order = 0, IsRequired = true)]
-    public string? ToolId;
-
-    [DataMember(Order = 3, IsRequired = true)]
-    public string? Version;
-
-    [DataMember(Order = 10, Name = nameof(CreationUtcTime))]
-    public string _CreationUtcTime
+    [JsonPropertyOrder(10)]
+    [JsonConverter(typeof(DateTimeCustomJsonConverter))]
+    public DateTime CreationUtcTime { get; set; }
+    
+    [JsonPropertyOrder(1000)]
+    [JsonRequired]
+    public required string[] Directories { get; set; }
+    
+    [JsonPropertyOrder(1)]
+    [JsonRequired]
+    [JsonConverter(typeof(GuidCustomJsonConverter))]
+    public required Guid FileId { get; set; }
+    
+    [JsonPropertyOrder(11)]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsProtected { get; set; }
+    
+    [JsonPropertyOrder(2)]
+    [JsonRequired]
+    public required string Product { get; set; }
+    
+    [JsonPropertyOrder(100)]
+    public TagKeyValue[]? Properties { get; set; }
+    
+    [JsonPropertyOrder(0)]
+    [JsonRequired]
+    public required string? ToolId { get; set; }
+    
+    [JsonPropertyOrder(3)]
+    [JsonRequired]
+    public required string Version { get; set; }
+  }
+  
+  internal class DateTimeCustomJsonConverter : JsonConverter<DateTime>
+  {
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-      get => CreationUtcTime.ToString("s");
-      set => CreationUtcTime = DateTime.ParseExact(value, "s", null);
+      return DateTime.ParseExact(reader.GetString()!, "s", null);
     }
 
-    [DataMember(Order = 1, Name = nameof(FileId))]
-    public string _FileId
+    public override void Write(Utf8JsonWriter writer, DateTime dateTimeValue, JsonSerializerOptions options)
     {
-      get => FileId.ToString("D");
-      set => FileId = Guid.ParseExact(value, "D");
+      writer.WriteStringValue(dateTimeValue.ToString("s")); 
+    }
+  }
+  
+  internal class GuidCustomJsonConverter : JsonConverter<Guid>
+  {
+    public override Guid Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+      return Guid.ParseExact(reader.GetString()!, "D");
+    }
+
+    public override void Write(Utf8JsonWriter writer, Guid guidValue, JsonSerializerOptions options)
+    {
+      writer.WriteStringValue(guidValue.ToString("D")); 
     }
   }
 }

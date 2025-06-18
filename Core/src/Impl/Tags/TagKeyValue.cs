@@ -1,18 +1,15 @@
-﻿using System;
-using System.Runtime.Serialization;
-using Newtonsoft.Json;
+﻿using System.Text.Json.Serialization;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
-  [DataContract]
-  [Serializable]
-  [JsonObject]
-  internal sealed class TagKeyValue
+  internal sealed record TagKeyValue
   {
-    [DataMember(Order = 0)]
-    public string? Key;
-
-    [DataMember(Order = 1)]
-    public string? Value;
+    [JsonPropertyOrder(0)]
+    [JsonRequired]
+    public required string Key { get; init; }
+    
+    [JsonPropertyOrder(1)]
+    [JsonRequired]
+    public required string Value { get; init; }
   }
 }

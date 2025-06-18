@@ -43,8 +43,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           var tagFile = tagItem.TagFile;
           myLogger.Verbose($"  Updating {tagFile}...");
 
-          var tag = tagItem.Tag.Clone();
-          tag.IsProtected = myIsProtected;
+          var tag = tagItem.Tag with
+          {
+            IsProtected = myIsProtected
+          };
          
           using var stream = new MemoryStream();
           await TagUtil.WriteTagScriptAsync(tag, stream);
