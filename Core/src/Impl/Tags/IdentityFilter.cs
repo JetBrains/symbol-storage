@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -8,10 +7,10 @@ namespace JetBrains.SymbolStorage.Impl.Tags
 {
   internal sealed class IdentityFilter
   {
-    private readonly Regex? myExcludeProductRegex;
-    private readonly Regex? myExcludeVersionRegex;
     private readonly Regex? myIncludeProductRegex;
+    private readonly Regex? myExcludeProductRegex;
     private readonly Regex? myIncludeVersionRegex;
+    private readonly Regex? myExcludeVersionRegex;
 
     public IdentityFilter(
       IEnumerable<string> incProductWildcards,
@@ -24,10 +23,11 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       if (incVersionWildcards == null) throw new ArgumentNullException(nameof(incVersionWildcards));
       if (excVersionWildcards == null) throw new ArgumentNullException(nameof(excVersionWildcards));
 
-      myExcludeProductRegex = BuildRegex("product exclude", excProductWildcards, TagUtil.ValidateProductWildcard);
-      myExcludeVersionRegex = BuildRegex("version exclude", excVersionWildcards, TagUtil.ValidateVersionWildcard);
       myIncludeProductRegex = BuildRegex("product include", incProductWildcards, TagUtil.ValidateProductWildcard);
+      myExcludeProductRegex = BuildRegex("product exclude", excProductWildcards, TagUtil.ValidateProductWildcard);
+      
       myIncludeVersionRegex = BuildRegex("version include", incVersionWildcards, TagUtil.ValidateVersionWildcard);
+      myExcludeVersionRegex = BuildRegex("version exclude", excVersionWildcards, TagUtil.ValidateVersionWildcard);
     }
     
     private static string ConvertWildcardToRegex(string str) => Regex.Escape(str).Replace("\\?", ".").Replace("\\*", ".*");
