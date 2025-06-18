@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Commands;
 using JetBrains.SymbolStorage.Impl.Storages;
-using Newtonsoft.Json;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
@@ -16,42 +15,30 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     private const string TagDirectory = "_jb.tags";
     private const string TagExtension = ".tag";
     private static readonly string TagDirectoryPathPrefix = TagDirectory + Path.DirectorySeparatorChar;
+    private static readonly JsonSerializerOptions JsonCommonSerializerOptions = new JsonSerializerOptions() { WriteIndented = true };
 
     public static string MakeTagFile(Identity identity, Guid fileId)
     {
-      if (identity == null)
-        throw new ArgumentNullException(nameof(identity));
       return Path.Combine(TagDirectory, identity.Product, identity.Product + '-' + identity.Version + '-' + fileId.ToString("N") + TagExtension);
     }
-
-    public static Tag Clone(this Tag tag)
-    {
-      var newTag = new Tag();
-      foreach (var filedInfo in typeof(Tag).GetFields())
-        filedInfo.SetValue(newTag, filedInfo.GetValue(tag));
-      return newTag;
-    }
-
+    
     public static async Task<Tag> ReadTagScriptAsync(Stream stream)
     {
-      using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: true);
-      var str = await reader.ReadToEndAsync();
-      var tag = JsonConvert.DeserializeObject<Tag>(str);
+      var tag = await JsonSerializer.DeserializeAsync<Tag>(stream);
       if (tag == null)
         throw new ArgumentException("Expected to read tag object in json format, but null received");
-      tag.Directories = tag.Directories?.Select(PathUtil.NormalizeSystem).ToArray();
+      tag.Directories = tag.Directories.Select(PathUtil.NormalizeSystem).ToArray();
       return tag;
     }
 
     public static async Task WriteTagScriptAsync(Tag tag, Stream stream)
     {
-      if (tag == null)
-        throw new ArgumentNullException(nameof(tag));
-      var tmp = tag.Clone();
-      tmp.Directories = tag.Directories?.Select(PathUtil.NormalizeLinux).ToArray();
-      await using var writer = new StreamWriter(stream, Encoding.UTF8, leaveOpen: true);
-      var str = JsonConvert.SerializeObject(tmp, Formatting.Indented);
-      await writer.WriteAsync(str);
+      var tmp = tag with
+      {
+        Directories = tag.Directories.Select(PathUtil.NormalizeLinux).ToArray()
+      };
+      
+      await JsonSerializer.SerializeAsync(stream, tmp, JsonCommonSerializerOptions);
     }
 
     public static async Task<List<TagFileData>> GetAllTagScriptsAsync(
@@ -123,11 +110,10 @@ namespace JetBrains.SymbolStorage.Impl.Tags
         var value = parts[1];
         if (!key.All(IsValidPropertyKey))
           throw new Exception("Invalid property key");
-        if (!key.All(IsValidPropertyValue))
+        if (!value.All(IsValidPropertyValue))
           throw new Exception("Invalid property value");
-        if (res.ContainsKey(key))
+        if (!res.TryAdd(key, value))
           throw new Exception($"Property {key} was defined twice");
-        res.Add(key, value);
       }
 
       return res.ToList();
