@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl;
@@ -203,7 +204,15 @@ namespace JetBrains.SymbolStorage.Tests
 
       resultData.Position = 0;
       var resultJson = new StreamReader(resultData, detectEncodingFromByteOrderMarks: true).ReadToEnd();
-      Assert.AreEqual(tagStr, resultJson);
+
+      string problemDescriptipn = "No problem";
+      if (tagStr != resultJson)
+      {
+        var firstDiff = tagStr.Zip(resultJson).Select((o, index) => new { Exp = o.First, Act = o.Second, Index = index }).FirstOrDefault(o => o.Exp != o.Act);
+        if (firstDiff != null)
+          problemDescriptipn = $"Problem at {firstDiff.Index}, symbols: {firstDiff.Exp} != {firstDiff.Act}";
+      }
+      Assert.AreEqual(tagStr, resultJson, problemDescriptipn);
     }
   }
 }
