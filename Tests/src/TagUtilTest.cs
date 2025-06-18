@@ -187,7 +187,7 @@ namespace JetBrains.SymbolStorage.Tests
                        "_.dwarf/mach-uuid-sym-1b7f1c87fcc5342e8af350af7e67d408"
                      ]
                    }
-                   """;
+                   """.Replace("\r\n", "\n").Replace("\r", "\n");
       
       var tag = await TagUtil.ReadTagScriptAsync(new MemoryStream(Encoding.UTF8.GetBytes(tagStr)));
       Assert.AreEqual("SymbolStorageMaker/1.2.4", tag.ToolId);
@@ -203,14 +203,14 @@ namespace JetBrains.SymbolStorage.Tests
       await TagUtil.WriteTagScriptAsync(tag, resultData);
 
       resultData.Position = 0;
-      var resultJson = new StreamReader(resultData, detectEncodingFromByteOrderMarks: true).ReadToEnd();
+      var resultJson = new StreamReader(resultData, detectEncodingFromByteOrderMarks: true).ReadToEnd().Replace("\r\n", "\n").Replace("\r", "\n");
 
       string problemDescriptipn = "No problem";
       if (tagStr != resultJson)
       {
         var firstDiff = tagStr.Zip(resultJson).Select((o, index) => new { Exp = o.First, Act = o.Second, Index = index }).FirstOrDefault(o => o.Exp != o.Act);
         if (firstDiff != null)
-          problemDescriptipn = $"Problem at {firstDiff.Index}, symbols: {firstDiff.Exp} != {firstDiff.Act}";
+          problemDescriptipn = $"Problem at {firstDiff.Index}, symbols: '{firstDiff.Exp}' != '{firstDiff.Act}'";
       }
       Assert.AreEqual(tagStr, resultJson, problemDescriptipn);
     }
