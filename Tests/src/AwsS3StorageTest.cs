@@ -270,15 +270,15 @@ namespace JetBrains.SymbolStorage.Tests
         var files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directoryName)).ToListAsync();
         Assert.AreEqual(2, files.Count);
         
-        Assert.IsTrue(files.Any(f => f.Name == recordName));
-        Assert.IsTrue(files.Any(f => f.Name == record2Name));
+        Assert.IsTrue(files.Any(f => f.FileName == recordName));
+        Assert.IsTrue(files.Any(f => f.FileName == record2Name));
         Assert.IsTrue(files.All(f => f.Size == OurTestData.Length));
         
         
         files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directoryName + "_2")).ToListAsync();
         Assert.AreEqual(1, files.Count);
         
-        Assert.IsTrue(files.Any(f => f.Name == recordInOtherDirName));
+        Assert.IsTrue(files.Any(f => f.FileName == recordInOtherDirName));
         Assert.IsTrue(files.All(f => f.Size == OurTestData.Length));
         
         

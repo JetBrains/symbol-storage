@@ -1,4 +1,4 @@
 ﻿namespace JetBrains.SymbolStorage.Impl.Storages
 {
-  internal readonly record struct ChildrenItem(string Name, long? Size);
+  internal readonly record struct ChildrenItem(SymbolPath FileName, long? Size);
 }
