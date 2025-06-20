@@ -424,7 +424,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         {
           if (x.Size.HasValue)
             Interlocked.Add(ref totalSize, x.Size.Value);
-          return x.Name;
+          return x.FileName;
         }).Where(TagUtil.IsDataFile).ToListAsync();
       return (files, totalSize);
     }
