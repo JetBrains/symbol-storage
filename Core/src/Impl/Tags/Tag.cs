@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
@@ -12,7 +13,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     
     [JsonPropertyOrder(1000)]
     [JsonRequired]
-    public required string[] Directories { get; set; }
+    public required SymbolPath[] Directories { get; set; }
     
     [JsonPropertyOrder(1)]
     [JsonRequired]
