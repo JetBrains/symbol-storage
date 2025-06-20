@@ -50,7 +50,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
         throw new ArgumentNullException(nameof(storage));
       return await storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory).ParallelForAsync(degreeOfParallelism, async item =>
         {
-          var file = item.Name;
+          var file = item.FileName;
           progress?.Invoke(file);
           return new TagFileData(file, await storage.OpenForReadingAsync(file, ReadTagScriptAsync));
         });

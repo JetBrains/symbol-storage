@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Amazon;
 using Amazon.CloudFront;
@@ -48,9 +49,20 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task<bool> ExistsAsync(string file)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static string SymbolPathToAwsKey(SymbolPath path)
     {
-      var key = file.CheckSystemFile().NormalizeLinux();
+      return path.Path;
+    }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static SymbolPath AwsKeyToSymbolPath(string key)
+    {
+      return new SymbolPath(key);
+    }
+
+    public async Task<bool> ExistsAsync(SymbolPath file)
+    {
+      var key = SymbolPathToAwsKey(file);
       try
       {
         await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
@@ -68,9 +80,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task DeleteAsync(string file)
+    public async Task DeleteAsync(SymbolPath file)
     {
-      var key = file.CheckSystemFile().NormalizeLinux();
+      var key = SymbolPathToAwsKey(file);
       await myS3Client.DeleteObjectAsync(new DeleteObjectRequest
         {
           BucketName = myBucketName,
@@ -78,10 +90,10 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public async Task RenameAsync(string srcFile, string dstFile, AccessMode mode)
+    public async Task RenameAsync(SymbolPath srcFile, SymbolPath dstFile, AccessMode mode)
     {
-      var srcKey = srcFile.CheckSystemFile().NormalizeLinux();
-      var dstKey = dstFile.CheckSystemFile().NormalizeLinux();
+      var srcKey = SymbolPathToAwsKey(srcFile);
+      var dstKey = SymbolPathToAwsKey(dstFile);
       await myS3Client.CopyObjectAsync(new CopyObjectRequest
         {
           SourceBucket = myBucketName,
@@ -97,9 +109,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public async Task<long> GetLengthAsync(string file)
+    public async Task<long> GetLengthAsync(SymbolPath file)
     {
-      var key = file.CheckSystemFile().NormalizeLinux();
+      var key = SymbolPathToAwsKey(file);
       var response = await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
         {
           BucketName = myBucketName,
@@ -110,9 +122,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public bool SupportAccessMode => mySupportAcl;
 
-    public async Task<AccessMode> GetAccessModeAsync(string file)
+    public async Task<AccessMode> GetAccessModeAsync(SymbolPath file)
     {
-      var key = file.CheckSystemFile().NormalizeLinux();
+      var key = SymbolPathToAwsKey(file);
       if (!mySupportAcl)
         return AccessMode.Unknown;
       var respond = await myS3Client.GetObjectAclAsync(new GetObjectAclRequest()
@@ -141,9 +153,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return hasReadPublic ? AccessMode.Public : AccessMode.Private;
     }
 
-    public async Task SetAccessModeAsync(string file, AccessMode mode)
+    public async Task SetAccessModeAsync(SymbolPath file, AccessMode mode)
     {
-      var key = file.CheckSystemFile().NormalizeLinux();
+      var key = SymbolPathToAwsKey(file);
       if (mySupportAcl)
       {
         await myS3Client.PutObjectAclAsync(new PutObjectAclRequest()
@@ -155,9 +167,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task<TResult> OpenForReadingAsync<TResult>(string file, Func<Stream, Task<TResult>> func)
+    public async Task<TResult> OpenForReadingAsync<TResult>(SymbolPath file, Func<Stream, Task<TResult>> func)
     {
-      var key = file.CheckSystemFile().NormalizeLinux();
+      var key = SymbolPathToAwsKey(file);
       using var response = await myS3Client.GetObjectAsync(new GetObjectRequest
         {
           BucketName = myBucketName,
@@ -166,17 +178,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return await func(response.ResponseStream);
     }
 
-    public Task OpenForReadingAsync(string file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
+    public Task OpenForReadingAsync(SymbolPath file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
       {
         await func(x);
         return true;
       });
 
-    public async Task CreateForWritingAsync(string file, AccessMode mode, Stream stream)
+    public async Task CreateForWritingAsync(SymbolPath file, AccessMode mode, Stream stream)
     {
       if (!stream.CanSeek)
         throw new ArgumentException("The stream should support the seek operation", nameof(stream));
-      var key = file.CheckSystemFile().NormalizeLinux();
+      var key = SymbolPathToAwsKey(file);
       await Task.Yield();
       
       stream.Seek(0, SeekOrigin.Begin);
@@ -217,12 +229,12 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return !response.S3Objects.Where(IsNotDataJsonFile).Any();
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, string? prefixDir = null)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolPath? prefixDir = null)
     {
       var request = new ListObjectsV2Request()
       {
         BucketName = myBucketName,
-        Prefix = string.IsNullOrEmpty(prefixDir) ? null : prefixDir.NormalizeLinux() + "/"
+        Prefix = prefixDir.HasValue ? SymbolPathToAwsKey(prefixDir.Value) + "/" : null
       };
       
       bool isCompleted = false;
@@ -237,7 +249,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         {
           yield return new ChildrenItem
           {
-            Name = s3Object.Key.NormalizeSystem(),
+            FileName = AwsKeyToSymbolPath(s3Object.Key),
             Size = (mode & ChildrenMode.WithSize) != 0 ? s3Object.Size : null
           };
         }
@@ -249,12 +261,12 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task InvalidateExternalServicesAsync(IEnumerable<string>? fileMasks = null)
+    public async Task InvalidateExternalServicesAsync(IEnumerable<SymbolPath>? fileMasks = null)
     {
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {
         var items = fileMasks != null
-          ? fileMasks.Select(x => "/" + x.CheckSystemFile().NormalizeLinux()).ToList()
+          ? fileMasks.Select(x => "/" + SymbolPathToAwsKey(x)).ToList()
           : new List<string> { "/*" };
         if (items.Count > 0)
         {
