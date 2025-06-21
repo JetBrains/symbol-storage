@@ -160,7 +160,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       ILogger logger = new LoggerWithStatistics(myLogger, statistics);
       files = await ValidateDataFilesAsync(logger, degreeOfParallelism, files, storageFormat, fix);
       var tree = await CreateDirectoryTreeAsync(degreeOfParallelism, files);
-      await items.ParallelFor(degreeOfParallelism, async item =>
+      await items.ParallelForAsync(degreeOfParallelism, async item =>
         {
           var tagFile = item.Key;
           var tag = item.Value;
@@ -287,7 +287,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       }
 
       logger.Info($"[{DateTime.Now:s}] Validating access rights{myId}...");
-      await files.ParallelFor(degreeOfParallelism, async file =>
+      await files.ParallelForAsync(degreeOfParallelism, async file =>
         {
           logger.Verbose($"  Validating {file}");
           if (TagUtil.IsTagFile(file) || TagUtil.IsStorageCasingFile(file))
@@ -328,7 +328,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       logger.Info($"[{DateTime.Now:s}] Validating data files{myId}...");
 
       var res = new ConcurrentBag<string>();
-      await files.ParallelFor(degreeOfParallelism, async file =>
+      await files.ParallelForAsync(degreeOfParallelism, async file =>
         {
           logger.Verbose($"  Validating {file}");
           switch (file.ValidateAndFixDataPath(storageFormat, out var fixedFile))
@@ -363,7 +363,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private static async Task<PathTreeNode> CreateDirectoryTreeAsync(int degreeOfParallelism, [NotNull] IEnumerable<string> files)
     {
       var tree = new PathTreeNode();
-      await files.ParallelFor(degreeOfParallelism, async file =>
+      await files.ParallelForAsync(degreeOfParallelism, async file =>
         {
           await Task.Yield();
           var node = tree;

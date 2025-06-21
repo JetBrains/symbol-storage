@@ -159,5 +159,35 @@ namespace JetBrains.SymbolStorage.Impl
         throw new ArgumentNullException(nameof(path));
       return path.Replace('/', Path.DirectorySeparatorChar);
     }
+    
+    public static bool IsPeWithWeakHashFile([NotNull] this string path)
+    {
+      var extension = Path.GetExtension(path.AsSpan());
+      if (extension.Length != 4)
+        return false;
+
+      Span<char> loweredExt = stackalloc char[4];
+      extension.ToLowerInvariant(loweredExt);
+
+      // Check extension
+      if (!(loweredExt is ".exe" || loweredExt is ".dll" || loweredExt is ".sys" ||
+            loweredExt is ".ex_" || loweredExt is ".dl_" || loweredExt is ".sy_"))
+      {
+        return false;
+      }
+
+      // Check for weak hash
+      var directory = Path.GetFileName(Path.GetDirectoryName(path.AsSpan()));
+      if (directory.Length <= 8 || directory.Length > 18)
+        return false;
+
+      for (int i = 0; i < directory.Length; i++)
+      {
+        if (!IsHex(directory[i]))
+          return false;
+      }
+
+      return true;
+    }
   }
 }
