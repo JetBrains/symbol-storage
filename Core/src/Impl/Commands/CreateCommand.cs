@@ -70,7 +70,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         async (tracer, srcDir, srcFile, dstFile) =>
           {
             if (dstFiles.TryAdd(dstFile, false))
-              await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile.Path.NormalizeSystem(), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
+              await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile.IntoSystemPath(), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
             else
               tracer.Warning($"The file {dstFile} already was created");
           }).ExecuteAsync();
