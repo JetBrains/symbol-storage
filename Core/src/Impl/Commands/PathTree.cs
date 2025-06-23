@@ -38,6 +38,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       return rootNode.LookupPathRecursive(dirStoragePath.Path.AsSpan(), SymbolStoragePath.DirectorySeparator);
     }
+    public PathTreeNode? LookupPathRecursive(SymbolStoragePathRef dirStoragePath)
+    {
+      return rootNode.LookupPathRecursive(dirStoragePath.Path, SymbolStoragePath.DirectorySeparator);
+    }
   }
 
   /// <summary>
@@ -141,6 +145,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
       return node;
     }
+    public PathTreeNode? LookupPathRecursive(SymbolStoragePathRef dirPath)
+    {
+      return LookupPathRecursive(dirPath.Path, SymbolStoragePath.DirectorySeparator);
+    }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IncrementReferences() => Interlocked.Increment(ref myReferences);
@@ -226,6 +234,10 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           curNode = curNode.GetOrInsert(dirPath[partRange]);
         
         return curNode;
+      }
+      public Builder AddPathRecursive(SymbolStoragePathRef dirPath)
+      {
+        return AddPathRecursive(dirPath.Path, SymbolStoragePath.DirectorySeparator);
       }
     }
   }
