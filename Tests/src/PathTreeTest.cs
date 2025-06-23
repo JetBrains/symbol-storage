@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Commands;
+using JetBrains.SymbolStorage.Impl.Storages;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace JetBrains.SymbolStorage.Tests
@@ -15,10 +15,11 @@ namespace JetBrains.SymbolStorage.Tests
     public void TreeBuildTest()
     {
       var treeBuilder = PathTree.BuildNew();
+      var filePath = SymbolStoragePath.Combine("abc", "bcd", "cde", "data.exe");
       var next = treeBuilder.Root.GetOrInsert("abc");
       next = next.GetOrInsert("bcd".AsSpan());
       next = next.GetOrInsert("cde".AsSpan());
-      next.AddFile("data.exe");
+      next.AddFile(filePath);
 
       
       var tree = treeBuilder.Build();
@@ -32,52 +33,55 @@ namespace JetBrains.SymbolStorage.Tests
       Assert.IsNotNull(child);
       Assert.IsTrue(child.HasFiles);
       Assert.IsFalse(child.HasChildren);
-      Assert.AreEqual("data.exe", child.GetFiles().Single());
+      Assert.AreEqual(filePath, child.GetFiles().Single());
     }
 
     [TestMethod]
     public void TreeRecursiveLookupTest()
     {
       var treeBuilder = PathTree.BuildNew();
+      var filePath1 = SymbolStoragePath.Combine("abc", "bcd", "cde", "data.exe");
       var next = treeBuilder.Root.GetOrInsert("abc");
       next = next.GetOrInsert("bcd".AsSpan());
       next = next.GetOrInsert("cde".AsSpan());
-      next.AddFile("data.exe");
+      next.AddFile(filePath1);
 
-      next = treeBuilder.AddPathRecursive($"abc{Path.DirectorySeparatorChar}www");
-      next.AddFile("data2.exe");
+      var filePath2 = SymbolStoragePath.Combine("abc", "www", "data2.exe");
+      next = treeBuilder.AddPathRecursive(SymbolStoragePath.Combine("abc", "www"));
+      next.AddFile(filePath2);
 
-      next = treeBuilder.AddPathRecursive("");
-      next.AddFile("data3.exe");
+      var filePath3 = new SymbolStoragePath("data3.exe");
+      next = treeBuilder.AddPathRecursive("", '/');
+      next.AddFile(filePath3);
       
       var tree = treeBuilder.Build();
       Assert.IsTrue(tree.Root.HasChildren);
 
-      var child = tree.LookupPathRecursive($"abc{Path.DirectorySeparatorChar}bcd{Path.DirectorySeparatorChar}cde");
+      var child = tree.LookupPathRecursive(SymbolStoragePath.Combine("abc", "bcd", "cde"));
       Assert.IsNotNull(child);
-      Assert.AreEqual("data.exe", child.GetFiles().Single());
+      Assert.AreEqual(filePath1, child.GetFiles().Single());
       
-      child = tree.LookupPathRecursive($"abc{Path.DirectorySeparatorChar}www");
+      child = tree.LookupPathRecursive(SymbolStoragePath.Combine("abc", "www").AsRef());
       Assert.IsNotNull(child);
-      Assert.AreEqual("data2.exe", child.GetFiles().Single());
+      Assert.AreEqual(filePath2, child.GetFiles().Single());
       
-      child = tree.LookupPathRecursive("");
+      child = tree.LookupPathRecursive("", '/');
       Assert.IsNotNull(child);
-      Assert.AreEqual("data3.exe", child.GetFiles().Single());
-      Assert.AreEqual("data3.exe", tree.Root.GetFiles().Single());
+      Assert.AreEqual(filePath3, child.GetFiles().Single());
+      Assert.AreEqual(filePath3, tree.Root.GetFiles().Single());
     }
 
     [TestMethod]
     public void TreeParallelBuildTest()
     {
-      List<string> paths = new List<string>();
+      List<SymbolStoragePath> paths = new List<SymbolStoragePath>();
       for (char c1 = 'a'; c1 <= 'z'; c1++)
       {
         for (char c2 = 'a'; c2 <= 'z'; c2++)
         {
           for (char c3 = 'a'; c3 <= 'z'; c3++)
           {
-            paths.Add($"{c1}{Path.DirectorySeparatorChar}{c2}{Path.DirectorySeparatorChar}{c3}{Path.DirectorySeparatorChar}data.exe");
+            paths.Add(SymbolStoragePath.Combine(c1.ToString(), c2.ToString(), c3.ToString(), "data.exe"));
           }
         }
       }
@@ -86,19 +90,19 @@ namespace JetBrains.SymbolStorage.Tests
 
       Parallel.ForEach(paths, new ParallelOptions() { MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount) }, item =>
       {
-        var dir = Path.GetDirectoryName(item.AsSpan());
+        var dir = SymbolStoragePath.GetDirectoryName(item.AsRef());
         var node = treeBuilder.Root.AddPathRecursive(dir);
-        node.AddFile(Path.GetFileName(item));
+        node.AddFile(item);
       });
       
       var tree = treeBuilder.Build();
 
       foreach (var item in paths)
       {
-        var dir = Path.GetDirectoryName(item.AsSpan());
+        var dir = SymbolStoragePath.GetDirectoryName(item.AsRef());
         var child = tree.LookupPathRecursive(dir);
         Assert.IsNotNull(child);
-        Assert.AreEqual("data.exe", child.GetFiles().Single());
+        Assert.AreEqual(item, child.GetFiles().Single());
       }
     }
   }
