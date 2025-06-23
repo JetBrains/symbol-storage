@@ -37,7 +37,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myLogger.Info($"[{DateTime.Now:s}] Creating storage markers{myId}...");
       if (!await myStorage.IsEmptyAsync())
         throw new InvalidOperationException("The empty storage is expected");
-      var files = new List<string> {Markers.SingleTier};
+      var files = new List<SymbolStoragePath> {Markers.SingleTier};
       switch (newStorageFormat)
       {
       case StorageFormat.Normal: break;
@@ -99,7 +99,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       foreach (var tagItem in tagItems)
       {
         var tag = tagItem.Tag;
-        if (identityFilter.IsMatch(tag.Product ?? "", tag.Version ?? "") &&
+        if (identityFilter.IsMatch(tag.Product, tag.Version) &&
             (minItemAgeFilter == null || tag.CreationUtcTime + minItemAgeFilter.Value < DateTime.UtcNow) &&
             (protectedFilter == null || protectedFilter == tag.IsProtected))
           included.Add(tagItem);
@@ -142,7 +142,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public async Task<(Statistics statistics, long deleted)> ValidateAndFixAsync(
       int degreeOfParallelism,
       IEnumerable<TagFileData> items,
-      IEnumerable<string> files,
+      IEnumerable<SymbolStoragePath> files,
       StorageFormat storageFormat,
       ValidateMode mode,
       bool verifyAcl = false)
@@ -181,7 +181,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
             }
           }
 
-          if (tag.Directories == null || tag.Directories.Length == 0)
+          if (tag.Directories.Length == 0)
           {
             logger.Error($"The empty directory list in {tagFile}");
             if (fix)
@@ -269,7 +269,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return null;
     }
 
-    private async Task ValidateAndFixAclAsync(ILogger logger, int degreeOfParallelism, IEnumerable<string> files, bool fix)
+    private async Task ValidateAndFixAclAsync(ILogger logger, int degreeOfParallelism, IEnumerable<SymbolStoragePath> files, bool fix)
     {
       if (!myStorage.SupportAccessMode)
       {
@@ -308,21 +308,21 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         });
     }
 
-    private async Task<List<string>> ValidateAndFixDataFilesAsync(
+    private async Task<List<SymbolStoragePath>> ValidateAndFixDataFilesAsync(
       ILogger logger,
       int degreeOfParallelism,
-      IEnumerable<string> files,
+      IEnumerable<SymbolStoragePath> files,
       StorageFormat storageFormat,
       bool fix)
     {
       logger.Info($"[{DateTime.Now:s}] Validating data files{myId}...");
 
-      var res = files.TryGetNonEnumeratedCount(out var expectedCount) ? new List<string>(expectedCount) : new List<string>();
+      var res = files.TryGetNonEnumeratedCount(out var expectedCount) ? new List<SymbolStoragePath>(expectedCount) : new List<SymbolStoragePath>();
       var resSyncObj = new Lock();
       await files.ParallelForAsync(degreeOfParallelism, async file =>
         {
           logger.Verbose($"  Validating {file}");
-          string finalFile;
+          SymbolStoragePath finalFile;
           switch (file.ValidateAndFixDataPath(storageFormat, out var fixedFile))
           {
           case PathUtil.ValidateAndFixErrors.Ok:
@@ -358,15 +358,15 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return res;
     }
 
-    private static PathTree CreateDirectoryTree(int degreeOfParallelism, IEnumerable<string> files)
+    private static PathTree CreateDirectoryTree(int degreeOfParallelism, IEnumerable<SymbolStoragePath> files)
     {
       var tree = PathTree.BuildNew();
       files.ParallelFor(degreeOfParallelism, file =>
       {
         var node = tree.Root;
-        var directory = Path.GetDirectoryName(file.AsSpan());
+        var directory = SymbolStoragePath.GetDirectoryNameAsSpan(file);
         if (directory.Length > 0)
-          node = node.AddPathRecursive(directory);
+          node = node.AddPathRecursive(directory, SymbolStoragePath.DirectorySeparator);
         node.AddFile(file);
       });
 
@@ -416,7 +416,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return deleted;
     }
 
-    public async Task<(List<string> files, long totalSize)> GatherDataFilesAsync()
+    public async Task<(List<SymbolStoragePath> files, long totalSize)> GatherDataFilesAsync()
     {
       myLogger.Info($"[{DateTime.Now:s}] Gathering data files{myId}...");
       long totalSize = 0;

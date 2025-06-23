@@ -2,5 +2,5 @@
 
 namespace JetBrains.SymbolStorage.Impl.Tags
 {
-  internal readonly record struct TagFileData(SymbolPath TagFile, Tag Tag);
+  internal readonly record struct TagFileData(SymbolStoragePath TagFile, Tag Tag);
 }

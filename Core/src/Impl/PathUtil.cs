@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl
 {
@@ -15,11 +16,16 @@ namespace JetBrains.SymbolStorage.Impl
 
     public static string GetPackedExtension(string ext)
     {
-      if (!ext.StartsWith("."))
+      return GetPackedExtension(ext.AsSpan());
+    }
+    public static string GetPackedExtension(ReadOnlySpan<char> ext)
+    {
+      if (!ext.StartsWith(".".AsSpan()))
         throw new Exception("Invalid extension format");
       if (ext.Length < 1)
         throw new Exception("At least one symbol in extension is expected");
-      return ext.Substring(0, ext.Length - 1) + '_';
+      
+      return string.Concat(ext.Slice(0, ext.Length - 1), "_".AsSpan());
     }
     
     public static string[] GetPathComponents(this string? path) => string.IsNullOrEmpty(path) ? Array.Empty<string>() : path.Split(Path.DirectorySeparatorChar);
@@ -128,6 +134,97 @@ namespace JetBrains.SymbolStorage.Impl
         throw new ArgumentOutOfRangeException(nameof(storageFormat), storageFormat, null);
       }
     }
+    
+    public static ValidateAndFixErrors ValidateAndFixDataPath(this SymbolStoragePath storagePath, StorageFormat storageFormat, out SymbolStoragePath fixedStoragePath)
+    {
+      fixedStoragePath = storagePath;
+      var parts = storagePath.Path.GetPathComponents();
+      if (parts.Length != 2 && parts.Length != 3)
+        return ValidateAndFixErrors.Error;
+      if (parts.Any(x => x.Length == 0))
+        return ValidateAndFixErrors.Error;
+
+      switch (storageFormat)
+      {
+      case StorageFormat.Normal:
+        {
+          var namePartLower = parts[0].ToLowerInvariant();
+          var hashPartLower = parts[1].ToLowerInvariant();
+
+          var nameExt = Path.GetExtension(namePartLower);
+          if (nameExt == PdbExt)
+          {
+            if (!hashPartLower.All(IsHex))
+              return ValidateAndFixErrors.Error;
+
+            if (hashPartLower.Length == 40)
+            {
+              // Note: See https://github.com/dotnet/symstore/blob/master/docs/specs/SSQP_Key_Conventions.md#portable-pdb-signature
+              //       This code expects that the real age never be 0xFFFFFFFF!!!
+              if (hashPartLower.Substring(32, 8) == "ffffffff")
+                hashPartLower = hashPartLower.Substring(0, 32) + "FFFFFFFF";
+            }
+          }
+          else if (nameExt == DllExt || nameExt == ExeExt)
+          {
+            if (!hashPartLower.All(IsHex))
+              return ValidateAndFixErrors.Error;
+
+            if (hashPartLower.Length > 8)
+            {
+              // Note: See https://github.com/dotnet/symstore/blob/master/docs/specs/SSQP_Key_Conventions.md#pe-timestamp-filesize
+              hashPartLower = hashPartLower.Substring(0, 8).ToUpperInvariant() + hashPartLower.Substring(8);
+            }
+          }
+
+          var builder = new StringBuilder()
+            .Append(namePartLower)
+            .Append(Path.DirectorySeparatorChar)
+            .Append(hashPartLower);
+
+          if (parts.Length > 2)
+          {
+            var filePartLower = parts[2].ToLowerInvariant();
+            if (filePartLower.EndsWith("_"))
+            {
+              if (namePartLower.Substring(0, namePartLower.Length - 1) != filePartLower.Substring(0, namePartLower.Length - 1))
+                return ValidateAndFixErrors.Error;
+            }
+            else if (namePartLower != filePartLower)
+              return ValidateAndFixErrors.Error;
+
+            builder
+              .Append(Path.DirectorySeparatorChar)
+              .Append(filePartLower);
+          }
+
+          var newPath = builder.ToString();
+          if (newPath == storagePath)
+            return ValidateAndFixErrors.Ok;
+
+          fixedStoragePath = newPath;
+          return ValidateAndFixErrors.CanBeFixed;
+        }
+      case StorageFormat.LowerCase:
+        {
+          var pathOrig = storagePath.ToLowerInvariant();
+          if (storagePath == pathOrig)
+            return ValidateAndFixErrors.Ok;
+          fixedStoragePath = pathOrig;
+          return ValidateAndFixErrors.CanBeFixed;
+        }
+      case StorageFormat.UpperCase:
+        {
+          var pathOrig = storagePath.ToUpperInvariant();
+          if (storagePath == pathOrig)
+            return ValidateAndFixErrors.Ok;
+          fixedStoragePath = pathOrig;
+          return ValidateAndFixErrors.CanBeFixed;
+        }
+      default:
+        throw new ArgumentOutOfRangeException(nameof(storageFormat), storageFormat, null);
+      }
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsHex(this char ch) =>
@@ -161,7 +258,7 @@ namespace JetBrains.SymbolStorage.Impl
       return path.Replace('/', Path.DirectorySeparatorChar);
     }
     
-    public static bool IsPeWithWeakHashFile(this string path)
+    public static bool IsPeFileWithWeakHash(this string path)
     {
       var extension = Path.GetExtension(path.AsSpan());
       if (extension.Length != 4)
@@ -179,6 +276,36 @@ namespace JetBrains.SymbolStorage.Impl
 
       // Check for weak hash
       var directory = Path.GetFileName(Path.GetDirectoryName(path.AsSpan()));
+      if (directory.Length <= 8 || directory.Length > 18)
+        return false;
+
+      for (int i = 0; i < directory.Length; i++)
+      {
+        if (!IsHex(directory[i]))
+          return false;
+      }
+
+      return true;
+    }
+
+    public static bool IsPeFileWithWeakHash(this SymbolStoragePath path)
+    {
+      var extension = Path.GetExtension(path.Path.AsSpan());
+      if (extension.Length != 4)
+        return false;
+
+      Span<char> loweredExt = stackalloc char[4];
+      extension.ToLowerInvariant(loweredExt);
+
+      // Check extension
+      if (!(loweredExt is ".exe" || loweredExt is ".dll" || loweredExt is ".sys" ||
+            loweredExt is ".ex_" || loweredExt is ".dl_" || loweredExt is ".sy_"))
+      {
+        return false;
+      }
+
+      // Check for weak hash
+      var directory = SymbolStoragePath.GetFileName(SymbolStoragePath.GetDirectoryName(path));
       if (directory.Length <= 8 || directory.Length > 18)
         return false;
 

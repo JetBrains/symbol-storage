@@ -191,7 +191,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow("foo.dll/542D574Ec2000/foo.sy_")]
     public void IsPeWithWeakHashFileTest(string path)
     {
-      Assert.IsTrue(path.IsPeWithWeakHashFile());
+      Assert.IsTrue(path.IsPeFileWithWeakHash());
     }
     
     [DataTestMethod]
@@ -203,7 +203,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow("foo.exe/542D574Ec2000000000/foo.dll")]
     public void IsNotPeWithWeakHashFileTest(string path)
     {
-      Assert.IsFalse(path.IsPeWithWeakHashFile());
+      Assert.IsFalse(path.IsPeFileWithWeakHash());
     }
   }
 }

@@ -50,17 +50,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static string SymbolPathToAwsKey(SymbolPath path)
+    private static string SymbolPathToAwsKey(SymbolStoragePath storagePath)
     {
-      return path.Path;
+      return storagePath.Path;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static SymbolPath AwsKeyToSymbolPath(string key)
+    private static SymbolStoragePath AwsKeyToSymbolPath(string key)
     {
-      return new SymbolPath(key);
+      return new SymbolStoragePath(key);
     }
 
-    public async Task<bool> ExistsAsync(SymbolPath file)
+    public async Task<bool> ExistsAsync(SymbolStoragePath file)
     {
       var key = SymbolPathToAwsKey(file);
       try
@@ -80,7 +80,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task DeleteAsync(SymbolPath file)
+    public async Task DeleteAsync(SymbolStoragePath file)
     {
       var key = SymbolPathToAwsKey(file);
       await myS3Client.DeleteObjectAsync(new DeleteObjectRequest
@@ -90,7 +90,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public async Task RenameAsync(SymbolPath srcFile, SymbolPath dstFile, AccessMode mode)
+    public async Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode)
     {
       var srcKey = SymbolPathToAwsKey(srcFile);
       var dstKey = SymbolPathToAwsKey(dstFile);
@@ -109,7 +109,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         });
     }
 
-    public async Task<long> GetLengthAsync(SymbolPath file)
+    public async Task<long> GetLengthAsync(SymbolStoragePath file)
     {
       var key = SymbolPathToAwsKey(file);
       var response = await myS3Client.GetObjectMetadataAsync(new GetObjectMetadataRequest
@@ -122,7 +122,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public bool SupportAccessMode => mySupportAcl;
 
-    public async Task<AccessMode> GetAccessModeAsync(SymbolPath file)
+    public async Task<AccessMode> GetAccessModeAsync(SymbolStoragePath file)
     {
       var key = SymbolPathToAwsKey(file);
       if (!mySupportAcl)
@@ -153,7 +153,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return hasReadPublic ? AccessMode.Public : AccessMode.Private;
     }
 
-    public async Task SetAccessModeAsync(SymbolPath file, AccessMode mode)
+    public async Task SetAccessModeAsync(SymbolStoragePath file, AccessMode mode)
     {
       var key = SymbolPathToAwsKey(file);
       if (mySupportAcl)
@@ -167,7 +167,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task<TResult> OpenForReadingAsync<TResult>(SymbolPath file, Func<Stream, Task<TResult>> func)
+    public async Task<TResult> OpenForReadingAsync<TResult>(SymbolStoragePath file, Func<Stream, Task<TResult>> func)
     {
       var key = SymbolPathToAwsKey(file);
       using var response = await myS3Client.GetObjectAsync(new GetObjectRequest
@@ -178,13 +178,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return await func(response.ResponseStream);
     }
 
-    public Task OpenForReadingAsync(SymbolPath file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
+    public Task OpenForReadingAsync(SymbolStoragePath file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
       {
         await func(x);
         return true;
       });
 
-    public async Task CreateForWritingAsync(SymbolPath file, AccessMode mode, Stream stream)
+    public async Task CreateForWritingAsync(SymbolStoragePath file, AccessMode mode, Stream stream)
     {
       if (!stream.CanSeek)
         throw new ArgumentException("The stream should support the seek operation", nameof(stream));
@@ -229,7 +229,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return !response.S3Objects.Where(IsNotDataJsonFile).Any();
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolPath? prefixDir = null)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolStoragePath? prefixDir = null)
     {
       var request = new ListObjectsV2Request()
       {
@@ -261,7 +261,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public async Task InvalidateExternalServicesAsync(IEnumerable<SymbolPath>? fileMasks = null)
+    public async Task InvalidateExternalServicesAsync(IEnumerable<SymbolStoragePath>? fileMasks = null)
     {
       if (!string.IsNullOrEmpty(myCloudFrontDistributionId))
       {
