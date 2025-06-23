@@ -3,8 +3,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Logger;
+using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
@@ -38,16 +40,24 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public async Task<int> ExecuteAsync()
     {
-      var map = new ConcurrentBag<KeyValuePair<string, string>>();
+      var map = new List<KeyValuePair<string, SymbolStoragePath>>();
+      var mapSyncObj = new Lock();
+      
       var statistics = await new LocalFilesScanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, false, mySources,
         (_, _, srcFile, dstFile) =>
           {
-            map.Add(KeyValuePair.Create(srcFile, dstFile));
+            lock (mapSyncObj)
+            {
+              map.Add(KeyValuePair.Create(srcFile, dstFile));
+            }
             return Task.CompletedTask;
           },
         (_, _, srcFile, dstFile) =>
           {
-            map.Add(KeyValuePair.Create(srcFile, dstFile));
+            lock (mapSyncObj)
+            {
+              map.Add(KeyValuePair.Create(srcFile, dstFile));
+            }
             return Task.CompletedTask;
           }, myBaseDir).ExecuteAsync();
       myLogger.Info($"[{DateTime.Now:s}] Done with data (warnings: {statistics.Warnings}, errors: {statistics.Errors})");
@@ -57,24 +67,22 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         return 1;
       }
 
-      await WriteSymRef(map);
+      WriteSymRef(map);
       return 0;
     }
 
-    private Task WriteSymRef(IEnumerable<KeyValuePair<string, string>> map)
+    private void WriteSymRef(List<KeyValuePair<string, SymbolStoragePath>> map)
     {
       myLogger.Info($"[{DateTime.Now:s}] Writing symbol reference file...");
-      var orderedMap = map.OrderBy(x => x.Key).ToList();
-      var keyLen = orderedMap.Max(x => x.Key.Length);
+      map.Sort((a, b) => string.Compare(a.Key, b.Key, StringComparison.Ordinal));
+      var keyLen = map.Max(x => x.Key.Length);
       using var writer = File.CreateText(mySymbolReferenceFile);
-      foreach (var (key, value) in orderedMap)
+      foreach (var (key, value) in map)
       {
         writer.Write(key.PadRight(keyLen));
         writer.Write(' ');
         writer.WriteLine(value);
       }
-
-      return Task.CompletedTask;
     }
   }
 }

@@ -18,43 +18,43 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private string SymbolPathToDiskPath(SymbolPath path)
+    private string SymbolPathToDiskPath(SymbolStoragePath storagePath)
     {
-      string relativePath = path.Path;
+      string relativePath = storagePath.Path;
       if (Path.DirectorySeparatorChar != '/')
         relativePath = relativePath.Replace('/', Path.DirectorySeparatorChar);
 
       return Path.Combine(myRootDir, relativePath);
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static string SymbolPathToRelativeDiskPath(SymbolPath path)
+    private static string SymbolPathToRelativeDiskPath(SymbolStoragePath storagePath)
     {
-      string relativePath = path.Path;
+      string relativePath = storagePath.Path;
       if (Path.DirectorySeparatorChar != '/')
         relativePath = relativePath.Replace('/', Path.DirectorySeparatorChar);
 
       return relativePath;
     }
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private SymbolPath DiskPathToSymbolPath(string diskPath)
+    private SymbolStoragePath DiskPathToSymbolPath(string diskPath)
     {
-      return SymbolPath.FromSystemPath(diskPath, basePath: myRootDir);
+      return SymbolStoragePath.FromSystemPath(diskPath, basePath: myRootDir);
     }
     
-    public async Task<bool> ExistsAsync(SymbolPath file)
+    public async Task<bool> ExistsAsync(SymbolStoragePath file)
     {
       await Task.Yield();
       return File.Exists(SymbolPathToDiskPath(file));
     }
 
-    public async Task DeleteAsync(SymbolPath file)
+    public async Task DeleteAsync(SymbolStoragePath file)
     {
       await Task.Yield();
       File.Delete(SymbolPathToDiskPath(file));
       TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(file)) ?? "");
     }
 
-    public async Task RenameAsync(SymbolPath srcFile, SymbolPath dstFile, AccessMode mode)
+    public async Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode)
     {
       await Task.Yield();
       var tempExt = '.' + Guid.NewGuid().ToString("N") + ".tmp";
@@ -96,7 +96,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(srcFile)) ?? "");
     }
 
-    public async Task<long> GetLengthAsync(SymbolPath file)
+    public async Task<long> GetLengthAsync(SymbolStoragePath file)
     {
       await Task.Yield();
       return new FileInfo(SymbolPathToDiskPath(file)).Length;
@@ -104,17 +104,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public bool SupportAccessMode => false;
 
-    public Task<AccessMode> GetAccessModeAsync(SymbolPath file)
+    public Task<AccessMode> GetAccessModeAsync(SymbolStoragePath file)
     {
       return Task.FromResult(AccessMode.Unknown);
     }
 
-    public Task SetAccessModeAsync(SymbolPath file, AccessMode mode)
+    public Task SetAccessModeAsync(SymbolStoragePath file, AccessMode mode)
     {
       return Task.CompletedTask;
     }
 
-    public async Task<TResult> OpenForReadingAsync<TResult>(SymbolPath file, Func<Stream, Task<TResult>> func)
+    public async Task<TResult> OpenForReadingAsync<TResult>(SymbolStoragePath file, Func<Stream, Task<TResult>> func)
     {
       if (func == null)
         throw new ArgumentNullException(nameof(func));
@@ -123,13 +123,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return await func(stream);
     }
 
-    public Task OpenForReadingAsync(SymbolPath file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
+    public Task OpenForReadingAsync(SymbolStoragePath file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
       {
         await func(x);
         return true;
       });
 
-    public async Task CreateForWritingAsync(SymbolPath file, AccessMode mode, Stream stream)
+    public async Task CreateForWritingAsync(SymbolStoragePath file, AccessMode mode, Stream stream)
     {
       if (stream == null)
         throw new ArgumentNullException(nameof(stream));
@@ -149,7 +149,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return !Directory.EnumerateFileSystemEntries(myRootDir).Any();
     }
 
-    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolPath? prefixDir = null)
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolStoragePath? prefixDir = null)
     {
       await Task.Yield();
       var stack = new Stack<string>();
@@ -177,7 +177,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task InvalidateExternalServicesAsync(IEnumerable<SymbolPath>? fileMasks = null)
+    public Task InvalidateExternalServicesAsync(IEnumerable<SymbolStoragePath>? fileMasks = null)
     {
       return Task.CompletedTask;
     }

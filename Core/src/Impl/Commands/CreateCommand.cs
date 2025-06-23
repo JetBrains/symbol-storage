@@ -58,7 +58,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       await new StorageManager(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
 
-      var dstFiles = new ConcurrentDictionary<string, bool>();
+      var dstFiles = new ConcurrentDictionary<SymbolStoragePath, bool>();
       var statistics = await new LocalFilesScanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
         async (tracer, srcDir, srcFile, dstFile) =>
           {
@@ -70,7 +70,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         async (tracer, srcDir, srcFile, dstFile) =>
           {
             if (dstFiles.TryAdd(dstFile, false))
-              await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile, stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
+              await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile.Path.NormalizeSystem(), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
             else
               tracer.Warning($"The file {dstFile} already was created");
           }).ExecuteAsync();
@@ -83,16 +83,16 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
       await WriteTag(dstFiles.Select(x =>
       {
-        var dir = Path.GetDirectoryName(x.Key);
+        var dir = SymbolStoragePath.GetDirectoryName(x.Key);
         Debug.Assert(dir != null);
-        return dir;
+        return dir.Value;
       }));
       
       await myStorage.InvalidateExternalServicesAsync();
       return 0;
     }
 
-    private async Task WriteTag(IEnumerable<string> dirs)
+    private async Task WriteTag(IEnumerable<SymbolStoragePath> dirs)
     {
       myLogger.Info($"[{DateTime.Now:s}] Writing tag file...");
       var fileId = Guid.NewGuid();
@@ -110,7 +110,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
               Key = x.Key,
               Value = x.Value
             }).ToArray(),
-          Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).Distinct().ToArray()
+          Directories = dirs.OrderBy(x => x).Distinct().ToArray()
         }, stream);
 
       await myStorage.CreateForWritingAsync(TagUtil.MakeTagFile(myIdentity, fileId), AccessMode.Private, stream);
