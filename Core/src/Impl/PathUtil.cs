@@ -20,7 +20,7 @@ namespace JetBrains.SymbolStorage.Impl
     }
     public static string GetPackedExtension(ReadOnlySpan<char> ext)
     {
-      if (!ext.StartsWith(".".AsSpan()))
+      if (!ext.StartsWith('.'))
         throw new Exception("Invalid extension format");
       if (ext.Length < 1)
         throw new Exception("At least one symbol in extension is expected");
@@ -30,115 +30,17 @@ namespace JetBrains.SymbolStorage.Impl
     
     public static string[] GetPathComponents(this string? path) => string.IsNullOrEmpty(path) ? Array.Empty<string>() : path.Split(Path.DirectorySeparatorChar);
     
-    public static MemoryExtensions.SpanSplitEnumerator<char> GetPathComponents(this ReadOnlySpan<char> path)
-    {
-      if (path.Length == 0)
-        return new MemoryExtensions.SpanSplitEnumerator<char>();
-      return path.Split(Path.DirectorySeparatorChar);
-    }
-
     public enum ValidateAndFixErrors
     {
       Ok,
       CanBeFixed,
       Error
     }
-
-    public static ValidateAndFixErrors ValidateAndFixDataPath(this string path, StorageFormat storageFormat, out string fixedPath)
-    {
-      fixedPath = path;
-      var parts = path.GetPathComponents();
-      if (parts.Length != 2 && parts.Length != 3)
-        return ValidateAndFixErrors.Error;
-      if (parts.Any(x => x.Length == 0))
-        return ValidateAndFixErrors.Error;
-
-      switch (storageFormat)
-      {
-      case StorageFormat.Normal:
-        {
-          var namePartLower = parts[0].ToLowerInvariant();
-          var hashPartLower = parts[1].ToLowerInvariant();
-
-          var nameExt = Path.GetExtension(namePartLower);
-          if (nameExt == PdbExt)
-          {
-            if (!hashPartLower.All(IsHex))
-              return ValidateAndFixErrors.Error;
-
-            if (hashPartLower.Length == 40)
-            {
-              // Note: See https://github.com/dotnet/symstore/blob/master/docs/specs/SSQP_Key_Conventions.md#portable-pdb-signature
-              //       This code expects that the real age never be 0xFFFFFFFF!!!
-              if (hashPartLower.Substring(32, 8) == "ffffffff")
-                hashPartLower = hashPartLower.Substring(0, 32) + "FFFFFFFF";
-            }
-          }
-          else if (nameExt == DllExt || nameExt == ExeExt)
-          {
-            if (!hashPartLower.All(IsHex))
-              return ValidateAndFixErrors.Error;
-
-            if (hashPartLower.Length > 8)
-            {
-              // Note: See https://github.com/dotnet/symstore/blob/master/docs/specs/SSQP_Key_Conventions.md#pe-timestamp-filesize
-              hashPartLower = hashPartLower.Substring(0, 8).ToUpperInvariant() + hashPartLower.Substring(8);
-            }
-          }
-
-          var builder = new StringBuilder()
-            .Append(namePartLower)
-            .Append(Path.DirectorySeparatorChar)
-            .Append(hashPartLower);
-
-          if (parts.Length > 2)
-          {
-            var filePartLower = parts[2].ToLowerInvariant();
-            if (filePartLower.EndsWith("_"))
-            {
-              if (namePartLower.Substring(0, namePartLower.Length - 1) != filePartLower.Substring(0, namePartLower.Length - 1))
-                return ValidateAndFixErrors.Error;
-            }
-            else if (namePartLower != filePartLower)
-              return ValidateAndFixErrors.Error;
-
-            builder
-              .Append(Path.DirectorySeparatorChar)
-              .Append(filePartLower);
-          }
-
-          var newPath = builder.ToString();
-          if (newPath == path)
-            return ValidateAndFixErrors.Ok;
-
-          fixedPath = newPath;
-          return ValidateAndFixErrors.CanBeFixed;
-        }
-      case StorageFormat.LowerCase:
-        {
-          var pathOrig = path.ToLowerInvariant();
-          if (path == pathOrig)
-            return ValidateAndFixErrors.Ok;
-          fixedPath = pathOrig;
-          return ValidateAndFixErrors.CanBeFixed;
-        }
-      case StorageFormat.UpperCase:
-        {
-          var pathOrig = path.ToUpperInvariant();
-          if (path == pathOrig)
-            return ValidateAndFixErrors.Ok;
-          fixedPath = pathOrig;
-          return ValidateAndFixErrors.CanBeFixed;
-        }
-      default:
-        throw new ArgumentOutOfRangeException(nameof(storageFormat), storageFormat, null);
-      }
-    }
     
     public static ValidateAndFixErrors ValidateAndFixDataPath(this SymbolStoragePath storagePath, StorageFormat storageFormat, out SymbolStoragePath fixedStoragePath)
     {
       fixedStoragePath = storagePath;
-      var parts = storagePath.Path.GetPathComponents();
+      var parts = storagePath.GetPathComponents();
       if (parts.Length != 2 && parts.Length != 3)
         return ValidateAndFixErrors.Error;
       if (parts.Any(x => x.Length == 0))
@@ -151,8 +53,8 @@ namespace JetBrains.SymbolStorage.Impl
           var namePartLower = parts[0].ToLowerInvariant();
           var hashPartLower = parts[1].ToLowerInvariant();
 
-          var nameExt = Path.GetExtension(namePartLower);
-          if (nameExt == PdbExt)
+          var nameExt = Path.GetExtension(namePartLower.AsSpan());
+          if (nameExt is PdbExt)
           {
             if (!hashPartLower.All(IsHex))
               return ValidateAndFixErrors.Error;
@@ -165,7 +67,7 @@ namespace JetBrains.SymbolStorage.Impl
                 hashPartLower = hashPartLower.Substring(0, 32) + "FFFFFFFF";
             }
           }
-          else if (nameExt == DllExt || nameExt == ExeExt)
+          else if (nameExt is DllExt || nameExt is ExeExt)
           {
             if (!hashPartLower.All(IsHex))
               return ValidateAndFixErrors.Error;
@@ -179,13 +81,13 @@ namespace JetBrains.SymbolStorage.Impl
 
           var builder = new StringBuilder()
             .Append(namePartLower)
-            .Append(Path.DirectorySeparatorChar)
+            .Append(SymbolStoragePath.DirectorySeparator)
             .Append(hashPartLower);
 
           if (parts.Length > 2)
           {
             var filePartLower = parts[2].ToLowerInvariant();
-            if (filePartLower.EndsWith("_"))
+            if (filePartLower.EndsWith('_'))
             {
               if (namePartLower.Substring(0, namePartLower.Length - 1) != filePartLower.Substring(0, namePartLower.Length - 1))
                 return ValidateAndFixErrors.Error;
@@ -194,20 +96,20 @@ namespace JetBrains.SymbolStorage.Impl
               return ValidateAndFixErrors.Error;
 
             builder
-              .Append(Path.DirectorySeparatorChar)
+              .Append(SymbolStoragePath.DirectorySeparator)
               .Append(filePartLower);
           }
 
           var newPath = builder.ToString();
-          if (newPath == storagePath)
+          if (storagePath == newPath)
             return ValidateAndFixErrors.Ok;
 
-          fixedStoragePath = newPath;
+          fixedStoragePath = new SymbolStoragePath(newPath);
           return ValidateAndFixErrors.CanBeFixed;
         }
       case StorageFormat.LowerCase:
         {
-          var pathOrig = storagePath.ToLowerInvariant();
+          var pathOrig = storagePath.ToLower();
           if (storagePath == pathOrig)
             return ValidateAndFixErrors.Ok;
           fixedStoragePath = pathOrig;
@@ -215,7 +117,7 @@ namespace JetBrains.SymbolStorage.Impl
         }
       case StorageFormat.UpperCase:
         {
-          var pathOrig = storagePath.ToUpperInvariant();
+          var pathOrig = storagePath.ToUpper();
           if (storagePath == pathOrig)
             return ValidateAndFixErrors.Ok;
           fixedStoragePath = pathOrig;
@@ -258,39 +160,9 @@ namespace JetBrains.SymbolStorage.Impl
       return path.Replace('/', Path.DirectorySeparatorChar);
     }
     
-    public static bool IsPeFileWithWeakHash(this string path)
-    {
-      var extension = Path.GetExtension(path.AsSpan());
-      if (extension.Length != 4)
-        return false;
-
-      Span<char> loweredExt = stackalloc char[4];
-      extension.ToLowerInvariant(loweredExt);
-
-      // Check extension
-      if (!(loweredExt is ".exe" || loweredExt is ".dll" || loweredExt is ".sys" ||
-            loweredExt is ".ex_" || loweredExt is ".dl_" || loweredExt is ".sy_"))
-      {
-        return false;
-      }
-
-      // Check for weak hash
-      var directory = Path.GetFileName(Path.GetDirectoryName(path.AsSpan()));
-      if (directory.Length <= 8 || directory.Length > 18)
-        return false;
-
-      for (int i = 0; i < directory.Length; i++)
-      {
-        if (!IsHex(directory[i]))
-          return false;
-      }
-
-      return true;
-    }
-
     public static bool IsPeFileWithWeakHash(this SymbolStoragePath path)
     {
-      var extension = Path.GetExtension(path.Path.AsSpan());
+      var extension = SymbolStoragePath.GetExtension(path.AsRef());
       if (extension.Length != 4)
         return false;
 
@@ -305,7 +177,7 @@ namespace JetBrains.SymbolStorage.Impl
       }
 
       // Check for weak hash
-      var directory = SymbolStoragePath.GetFileName(SymbolStoragePath.GetDirectoryName(path));
+      var directory = SymbolStoragePath.GetFileName(SymbolStoragePath.GetDirectoryName(path.AsRef()));
       if (directory.Length <= 8 || directory.Length > 18)
         return false;
 

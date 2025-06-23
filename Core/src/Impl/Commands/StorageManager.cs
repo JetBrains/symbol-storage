@@ -364,9 +364,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       files.ParallelFor(degreeOfParallelism, file =>
       {
         var node = tree.Root;
-        var directory = SymbolStoragePath.GetDirectoryNameAsSpan(file);
-        if (directory.Length > 0)
-          node = node.AddPathRecursive(directory, SymbolStoragePath.DirectorySeparator);
+        var directory = SymbolStoragePath.GetDirectoryName(file.AsRef());
+        if (!directory.IsEmpty)
+          node = node.AddPathRecursive(directory);
         node.AddFile(file);
       });
 
