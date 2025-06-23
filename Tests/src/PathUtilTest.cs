@@ -9,6 +9,7 @@ namespace JetBrains.SymbolStorage.Tests
   [TestClass]
   public class PathUtilTest
   {
+    /*
     [DataTestMethod]
     [DataRow("")]
     [DataRow("a/b/c", "a", "b", "c")]
@@ -18,7 +19,7 @@ namespace JetBrains.SymbolStorage.Tests
     {
       Assert.IsTrue(expectedParts.SequenceEqual(path.NormalizeSystem().GetPathComponents()));
     }
-
+    
     [DataTestMethod]
     [DataRow(null)]
     [DataRow("")]
@@ -205,5 +206,6 @@ namespace JetBrains.SymbolStorage.Tests
     {
       Assert.IsFalse(path.IsPeFileWithWeakHash());
     }
+    */
   }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -55,6 +56,33 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       // SymbolPath validation logic forbid `DirectorySeparator` at the beginning and at the end,
       // thus it is safe just to concat paths with DirectorySeparatorString in the middle
       return new SymbolStoragePath(string.Concat(path1.Path, DirectorySeparatorString, path2.Path, DirectorySeparatorString, path3.Path), validate: false);
+    }
+    public static SymbolStoragePath Combine(string path1, string path2)
+    {
+      return Combine(new SymbolStoragePath(path1), new SymbolStoragePath(path2));
+    }
+    public static SymbolStoragePath Combine(string path1, string path2, string path3)
+    {
+      return Combine(new SymbolStoragePath(path1), new SymbolStoragePath(path2), new SymbolStoragePath(path3));
+    }
+    public static SymbolStoragePath Combine(params ReadOnlySpan<string> parts)
+    {
+      StringBuilder result = new StringBuilder();
+      for (int i = 0; i < parts.Length; i++)
+      {
+        if (i > 0)
+          result.Append(DirectorySeparator);
+        result.Append(parts[i]);
+      }
+      return new SymbolStoragePath(result.ToString());
+    }
+    public static SymbolStoragePath Combine(SymbolStoragePath path1, string path2)
+    {
+      return Combine(path1, new SymbolStoragePath(path2));
+    }
+    public static SymbolStoragePath Combine(SymbolStoragePath path1, string path2, string path3)
+    {
+      return Combine(path1, new SymbolStoragePath(path2), new SymbolStoragePath(path3));
     }
 
     public static SymbolStoragePathRef GetDirectoryName(SymbolStoragePathRef storagePath)
@@ -127,6 +155,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     public SymbolStoragePath ToUpper()
     {
       return new SymbolStoragePath(Path.ToUpperInvariant(), validate: false);
+    }
+
+    public string IntoSystemPath()
+    {
+      return Path.NormalizeSystem();
     }
 
     public override string ToString()

@@ -12,9 +12,10 @@ namespace JetBrains.SymbolStorage.Impl.Tags
 {
   internal static class TagUtil
   {
-    private static readonly SymbolStoragePath TagDirectory = new SymbolStoragePath("_jb.tags");
+    private const string TagDirectoryStr = "_jb.tags";
+    private static readonly SymbolStoragePath TagDirectory = new SymbolStoragePath(TagDirectoryStr);
     private const string TagExtension = ".tag";
-    private static readonly string TagDirectoryPathPrefix = TagDirectory.Path + Path.DirectorySeparatorChar;
+    private const string TagDirectoryPathPrefix = TagDirectoryStr + SymbolStoragePath.DirectorySeparatorString;
     private static readonly JsonSerializerOptions JsonCommonSerializerOptions = new JsonSerializerOptions() { WriteIndented = true };
 
     public static SymbolStoragePath MakeTagFile(Identity identity, Guid fileId)

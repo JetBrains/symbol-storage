@@ -230,9 +230,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       public Builder AddPathRecursive(ReadOnlySpan<char> dirPath, char directorySeparator)
       {
         var curNode = this;
-        foreach (var partRange in dirPath.Split(directorySeparator))
-          curNode = curNode.GetOrInsert(dirPath[partRange]);
-        
+        if (dirPath.Length > 0)
+        {
+          foreach (var partRange in dirPath.Split(directorySeparator))
+            curNode = curNode.GetOrInsert(dirPath[partRange]);
+        }
+
         return curNode;
       }
       public Builder AddPathRecursive(SymbolStoragePathRef dirPath)

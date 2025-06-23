@@ -48,7 +48,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task PutDataToStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -63,7 +63,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task GetDataFromStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -86,7 +86,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task GetDataLengthFromStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -108,7 +108,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task ExistsInStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         Assert.IsFalse(await client.ExistsAsync(recordName));
@@ -127,7 +127,7 @@ namespace JetBrains.SymbolStorage.Tests
     [TestMethod] public async Task DeleteDataFromStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         Assert.IsFalse(await client.ExistsAsync(recordName));
@@ -149,7 +149,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task PutOverwritesDataInStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         Assert.IsFalse(await client.ExistsAsync(recordName));
@@ -180,8 +180,8 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task RenameInStorageTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
-      var renamedRecordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
+      var renamedRecordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}_rn.txt");
       try
       {
         Assert.IsFalse(await client.ExistsAsync(recordName));
@@ -216,7 +216,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task AccessModeOperationsTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -239,7 +239,7 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task IsEmptyBucketTest()
     {
       using var client = CreateAwsStorageClient();
-      var recordName = $"test_path_{Guid.NewGuid():N}{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var recordName = SymbolStoragePath.Combine($"test_path_{Guid.NewGuid():N}", $"file_{Guid.NewGuid():N}.txt");
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -257,10 +257,12 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task GetChildrenTest()
     {
       using var client = CreateAwsStorageClient();
-      var directoryName = $"test_path_{Guid.NewGuid():N}";
-      var recordName = $"{directoryName}{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
-      var record2Name = $"{directoryName}{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
-      var recordInOtherDirName = $"{directoryName}_2{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var directoryName = new SymbolStoragePath($"test_path_{Guid.NewGuid():N}");
+      var directory2Name = new SymbolStoragePath(directoryName.Path + "_2");
+      var directory3Name = new SymbolStoragePath(directoryName.Path + "_3");
+      var recordName = SymbolStoragePath.Combine(directoryName, $"file_{Guid.NewGuid():N}.txt");
+      var record2Name = SymbolStoragePath.Combine(directoryName, $"file_{Guid.NewGuid():N}.txt");
+      var recordInOtherDirName = SymbolStoragePath.Combine(directory2Name, $"file_{Guid.NewGuid():N}.txt");
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
@@ -275,14 +277,14 @@ namespace JetBrains.SymbolStorage.Tests
         Assert.IsTrue(files.All(f => f.Size == OurTestData.Length));
         
         
-        files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directoryName + "_2")).ToListAsync();
+        files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directory2Name)).ToListAsync();
         Assert.AreEqual(1, files.Count);
         
         Assert.IsTrue(files.Any(f => f.FileName == recordInOtherDirName));
         Assert.IsTrue(files.All(f => f.Size == OurTestData.Length));
         
         
-        files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directoryName + "_3")).ToListAsync();
+        files = await (client.GetChildrenAsync(ChildrenMode.WithSize, directory3Name)).ToListAsync();
         Assert.AreEqual(0, files.Count);
         
         
@@ -301,13 +303,13 @@ namespace JetBrains.SymbolStorage.Tests
     public async Task InvalidateRecordsInCacheTest()
     {
       using var client = CreateAwsStorageClient();
-      var directory = $"test_path_{Guid.NewGuid():N}";
-      var recordName = $"directory{Path.DirectorySeparatorChar}file_{Guid.NewGuid():N}.txt";
+      var directory = new SymbolStoragePath($"test_path_{Guid.NewGuid():N}");
+      var recordName = SymbolStoragePath.Combine(directory, $"file_{Guid.NewGuid():N}.txt");
       try
       {
         await client.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
 
-        await client.InvalidateExternalServicesAsync([directory + Path.DirectorySeparatorChar + "*"]);
+        await client.InvalidateExternalServicesAsync([SymbolStoragePath.Combine(directory, "*")]);
       }
       finally
       {
