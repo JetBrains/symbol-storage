@@ -1,7 +1,5 @@
-using System;
-using System.Linq;
-using System.Runtime.InteropServices;
 using JetBrains.SymbolStorage.Impl;
+using JetBrains.SymbolStorage.Impl.Storages;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace JetBrains.SymbolStorage.Tests
@@ -9,37 +7,6 @@ namespace JetBrains.SymbolStorage.Tests
   [TestClass]
   public class PathUtilTest
   {
-    /*
-    [DataTestMethod]
-    [DataRow("")]
-    [DataRow("a/b/c", "a", "b", "c")]
-    [DataRow("a//c", "a", "", "c")]
-    [DataRow("//", "", "", "")]
-    public void GetPathComponentsTest(string path, params string[] expectedParts)
-    {
-      Assert.IsTrue(expectedParts.SequenceEqual(path.NormalizeSystem().GetPathComponents()));
-    }
-    
-    [DataTestMethod]
-    [DataRow(null)]
-    [DataRow("")]
-    [DataRow("/")]
-    [DataRow("/a")]
-    [DataRow("a/")]
-    [DataRow("\\")]
-    [DataRow("\\a")]
-    [DataRow("a\\")]
-    [DataRow("a🀇b")]
-    public void CheckSystemFileTest(string? path)
-    {
-      var path2 = path?.Replace("🀇", RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "/" : "\\"); // To verify, that path does not contain separator from other OS
-      Assert.Throws<ArgumentException>(() =>
-      {
-        string checkedPath = path2.CheckSystemFile();
-        Assert.AreSame(path2, checkedPath);
-      });
-    }
-    
     [DataTestMethod]
     [DataRow(StorageFormat.Normal, "a")]
     [DataRow(StorageFormat.Normal, "a/b/c/d")]
@@ -48,7 +15,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(StorageFormat.Normal, "foo.pdb/497b72f6390a44fc878e5ax2d63b6cc4bFFFFFFFF/foo.pdb")]
     public void ErrorTest(object storageFormat, string path)
     {
-      Assert.AreEqual(PathUtil.ValidateAndFixErrors.Error, path.NormalizeSystem().ValidateAndFixDataPath((StorageFormat) storageFormat, out _));
+      Assert.AreEqual(PathUtil.ValidateAndFixErrors.Error, new SymbolStoragePath(path).ValidateAndFixDataPath((StorageFormat) storageFormat, out _));
     }
 
     [DataTestMethod]
@@ -117,7 +84,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(StorageFormat.UpperCase, "FOO.CS/SHA1-497B72F6390A44FC878E5A2D63B6CC4B0C2D9984")]
     public void OkTest(object storageFormat, string path)
     {
-      Assert.AreEqual(PathUtil.ValidateAndFixErrors.Ok, path.NormalizeSystem().ValidateAndFixDataPath((StorageFormat) storageFormat, out _));
+      Assert.AreEqual(PathUtil.ValidateAndFixErrors.Ok, new SymbolStoragePath(path).ValidateAndFixDataPath((StorageFormat) storageFormat, out _));
     }
 
     [DataTestMethod]
@@ -177,8 +144,8 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(StorageFormat.UpperCase, "foO.Cs/shA1-497B72F6390a44fc878E5A2d63b6cc4b0c2d9984", "FOO.CS/SHA1-497B72F6390A44FC878E5A2D63B6CC4B0C2D9984")]
     public void CanBeFixedTest(object storageFormat, string path, string expectedPath)
     {
-      Assert.AreEqual(PathUtil.ValidateAndFixErrors.CanBeFixed, path.NormalizeSystem().ValidateAndFixDataPath((StorageFormat) storageFormat, out var fixedPath));
-      Assert.AreEqual(expectedPath.NormalizeSystem(), fixedPath);
+      Assert.AreEqual(PathUtil.ValidateAndFixErrors.CanBeFixed, new SymbolStoragePath(path).ValidateAndFixDataPath((StorageFormat) storageFormat, out var fixedPath));
+      Assert.AreEqual(new SymbolStoragePath(expectedPath), fixedPath);
     }
 
 
@@ -192,7 +159,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow("foo.dll/542D574Ec2000/foo.sy_")]
     public void IsPeWithWeakHashFileTest(string path)
     {
-      Assert.IsTrue(path.IsPeFileWithWeakHash());
+      Assert.IsTrue(new SymbolStoragePath(path).IsPeFileWithWeakHash());
     }
     
     [DataTestMethod]
@@ -204,8 +171,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow("foo.exe/542D574Ec2000000000/foo.dll")]
     public void IsNotPeWithWeakHashFileTest(string path)
     {
-      Assert.IsFalse(path.IsPeFileWithWeakHash());
+      Assert.IsFalse(new SymbolStoragePath(path).IsPeFileWithWeakHash());
     }
-    */
   }
 }

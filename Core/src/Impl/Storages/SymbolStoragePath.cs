@@ -30,11 +30,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public static SymbolStoragePath FromSystemPath(string path)
     {
-      return new SymbolStoragePath(path.NormalizeLinux());
+      return new SymbolStoragePath(PathUtil.NormalizeLinux(path));
     }
     public static SymbolStoragePath FromSystemPath(string path, string basePath)
     {
-      return new SymbolStoragePath(System.IO.Path.GetRelativePath(basePath, path).NormalizeLinux());
+      return new SymbolStoragePath(PathUtil.NormalizeLinux(System.IO.Path.GetRelativePath(basePath, path)));
     }
 
     public static SymbolStoragePath? FromRef(SymbolStoragePathRef path)
@@ -159,7 +159,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public string IntoSystemPath()
     {
-      return Path.NormalizeSystem();
+      return PathUtil.NormalizeSystem(Path);
     }
 
     public override string ToString()
