@@ -44,7 +44,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         deleteTags = incTagItems.Count;
 
         myLogger.Info($"[{DateTime.Now:s}] Deleting tag files...");
-        await incTagItems.ParallelFor(myDegreeOfParallelism, async tagItem =>
+        await incTagItems.ParallelForAsync(myDegreeOfParallelism, async tagItem =>
           {
             var file = tagItem.Key;
             myLogger.Info($"  Deleting {file}");

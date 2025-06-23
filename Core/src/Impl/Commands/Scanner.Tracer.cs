@@ -1,4 +1,6 @@
-﻿using System;
+﻿#nullable enable
+
+using System;
 using JetBrains.Annotations;
 using JetBrains.SymbolStorage.Impl.Logger;
 using Microsoft.SymbolStore;
@@ -11,7 +13,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       private readonly ILogger myLogger;
 
-      public Tracer([NotNull] ILogger logger)
+      public Tracer(ILogger logger)
       {
         myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       }

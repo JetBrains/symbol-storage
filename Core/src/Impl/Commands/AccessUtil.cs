@@ -25,6 +25,12 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public const string ProtectedOn = "protected";
     public const string ProtectedOff = "unprotected";
     public const string ProtectedDefault = ProtectedOff;
+    
+    public const string CollisionResolutionTerminate = "terminate";
+    public const string CollisionResolutionKeepExisted = "keepexisted";
+    public const string CollisionResolutionOverwrite = "overwrite";
+    public const string CollisionResolutionOverwriteWithoutBackup = "overwritewithoutbackup";
+    
 
     public static bool? GetProtectedValue([NotNull] string value) => value switch
       {
@@ -92,5 +98,15 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         UpperStorageFormat => StorageFormat.UpperCase,
         _ => throw new ArgumentOutOfRangeException(nameof(casing), casing, null)
       };
+
+    public static CollisionResolutionMode GetCollisionResolutionMode([CanBeNull] string value, CollisionResolutionMode defaultMode = CollisionResolutionMode.Terminate) => value?.ToLowerInvariant() switch
+    {
+      null => defaultMode,
+      CollisionResolutionTerminate => CollisionResolutionMode.Terminate,
+      CollisionResolutionKeepExisted => CollisionResolutionMode.KeepExisted,
+      CollisionResolutionOverwrite => CollisionResolutionMode.Overwrite,
+      CollisionResolutionOverwriteWithoutBackup => CollisionResolutionMode.OverwriteWithoutBackup,
+      _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown collision resolution mode")
+    };
   }
 }
