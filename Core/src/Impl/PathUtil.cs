@@ -2,7 +2,6 @@
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using JetBrains.SymbolStorage.Impl.Storages;
 
@@ -27,8 +26,6 @@ namespace JetBrains.SymbolStorage.Impl
       
       return string.Concat(ext.Slice(0, ext.Length - 1), "_".AsSpan());
     }
-    
-    public static string[] GetPathComponents(this string? path) => string.IsNullOrEmpty(path) ? Array.Empty<string>() : path.Split(Path.DirectorySeparatorChar);
     
     public enum ValidateAndFixErrors
     {
@@ -133,27 +130,15 @@ namespace JetBrains.SymbolStorage.Impl
       ch >= '0' && ch <= '9' ||
       ch >= 'a' && ch <= 'f' ||
       ch >= 'A' && ch <= 'F';
-
-    public static string CheckSystemFile(this string? file)
-    {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
-      if (Path.DirectorySeparatorChar == file[0] ||
-          Path.DirectorySeparatorChar == file[^1])
-        throw new ArgumentException(null, nameof(file));
-      if (file.Contains(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '/' : '\\'))
-        throw new ArgumentException(null, nameof(file));
-      return file;
-    }
     
-    public static string NormalizeLinux(this string path)
+    public static string NormalizeLinux(string path)
     {
       if (path == null)
         throw new ArgumentNullException(nameof(path));
       return path.Replace('\\', '/');
     }
 
-    public static string NormalizeSystem(this string path)
+    public static string NormalizeSystem(string path)
     {
       if (path == null)
         throw new ArgumentNullException(nameof(path));

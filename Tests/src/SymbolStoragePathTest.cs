@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using JetBrains.SymbolStorage.Impl;
 using JetBrains.SymbolStorage.Impl.Storages;
@@ -34,6 +35,15 @@ namespace JetBrains.SymbolStorage.Tests
           Assert.AreEqual(path, symbolStoragePath.Path);
         });
       }
+    }
+    
+    
+    [DataTestMethod]
+    [DataRow("a/b/c", "a", "b", "c")]
+    [DataRow("a//c", "a", "", "c")]
+    public void GetPathComponentsTest(string path, params string[] expectedParts)
+    {
+      Assert.IsTrue(expectedParts.SequenceEqual(new SymbolStoragePath(path).GetPathComponents()));
     }
   }
 }
