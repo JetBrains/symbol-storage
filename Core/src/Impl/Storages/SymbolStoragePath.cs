@@ -20,6 +20,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new ArgumentException("Symbol path cannot start and end with path separator", nameof(path));
       if (path.Contains('\\'))
         throw new ArgumentException("Only Linux style separators allowed", nameof(path));
+      if (path.Contains("//".AsSpan(), StringComparison.Ordinal))
+        throw new ArgumentException("Multiple separators in a row is not allowed", nameof(path));
     }
     public static void ValidatePathCorrectness(string? path)
     {
@@ -34,7 +36,10 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     }
     public static SymbolStoragePath FromSystemPath(string path, string basePath)
     {
-      return new SymbolStoragePath(PathUtil.NormalizeLinux(System.IO.Path.GetRelativePath(basePath, path)));
+      var relativePath = path;
+      if (basePath.Length > 0)
+        relativePath = System.IO.Path.GetRelativePath(basePath, path);
+      return new SymbolStoragePath(PathUtil.NormalizeLinux(relativePath));
     }
 
     public static SymbolStoragePath? FromRef(SymbolStoragePathRef path)
