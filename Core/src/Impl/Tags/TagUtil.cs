@@ -12,14 +12,14 @@ namespace JetBrains.SymbolStorage.Impl.Tags
 {
   internal static class TagUtil
   {
-    private static readonly SymbolPath TagDirectory = new SymbolPath("_jb.tags");
+    private static readonly SymbolStoragePath TagDirectory = new SymbolStoragePath("_jb.tags");
     private const string TagExtension = ".tag";
     private static readonly string TagDirectoryPathPrefix = TagDirectory.Path + Path.DirectorySeparatorChar;
     private static readonly JsonSerializerOptions JsonCommonSerializerOptions = new JsonSerializerOptions() { WriteIndented = true };
 
-    public static SymbolPath MakeTagFile(Identity identity, Guid fileId)
+    public static SymbolStoragePath MakeTagFile(Identity identity, Guid fileId)
     {
-      return SymbolPath.Combine(TagDirectory, new SymbolPath(identity.Product), new SymbolPath(identity.Product + '-' + identity.Version + '-' + fileId.ToString("N") + TagExtension));
+      return SymbolStoragePath.Combine(TagDirectory, new SymbolStoragePath(identity.Product), new SymbolStoragePath(identity.Product + '-' + identity.Version + '-' + fileId.ToString("N") + TagExtension));
     }
     
     public static async Task<Tag> ReadTagScriptAsync(Stream stream)
@@ -38,7 +38,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     public static async Task<List<TagFileData>> GetAllTagScriptsAsync(
       this IStorage storage,
       int degreeOfParallelism,
-      Action<SymbolPath>? progress = null)
+      Action<SymbolStoragePath>? progress = null)
     {
       if (storage == null)
         throw new ArgumentNullException(nameof(storage));
@@ -51,18 +51,18 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsStorageFormatFile(SymbolPath file) =>
+    public static bool IsStorageFormatFile(SymbolStoragePath file) =>
       file == Markers.Flat ||
       file == Markers.SingleTier ||
       file == Markers.TwoTier;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsStorageCasingFile(SymbolPath file) =>
+    public static bool IsStorageCasingFile(SymbolStoragePath file) =>
       file == Markers.LowerCase ||
       file == Markers.UpperCase;
 
-    public static bool IsTagFile(SymbolPath file) => file.Path.StartsWith(TagDirectoryPathPrefix);
-    public static bool IsDataFile(SymbolPath file) => !(IsStorageFormatFile(file) || IsStorageCasingFile(file) || IsTagFile(file));
+    public static bool IsTagFile(SymbolStoragePath file) => file.Path.StartsWith(TagDirectoryPathPrefix);
+    public static bool IsDataFile(SymbolStoragePath file) => !(IsStorageFormatFile(file) || IsStorageCasingFile(file) || IsTagFile(file));
 
     public static bool ValidateProduct(string? product) => !string.IsNullOrEmpty(product) && product.All(IsValidProduct);
     public static bool ValidateVersion(string? version) => !string.IsNullOrEmpty(version) && version.All(IsValidVersion);

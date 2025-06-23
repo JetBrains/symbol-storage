@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
@@ -24,13 +25,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// <paramref name="dirPath"/> should be a directory (file part is not allowed)
     /// </summary>
     /// <param name="dirPath">Directory path (file name should be excluded)</param>
-    public PathTreeNode? LookupPathRecursive(string dirPath)
+    /// <param name="directorySeparator">Directory separator symbol</param>
+    public PathTreeNode? LookupPathRecursive(string dirPath, char directorySeparator)
     {
-      return rootNode.LookupPathRecursive(dirPath.AsSpan());
+      return rootNode.LookupPathRecursive(dirPath.AsSpan(), directorySeparator);
     }
-    public PathTreeNode? LookupPathRecursive(ReadOnlySpan<char> dirPath)
+    public PathTreeNode? LookupPathRecursive(ReadOnlySpan<char> dirPath, char directorySeparator)
     {
-      return rootNode.LookupPathRecursive(dirPath);
+      return rootNode.LookupPathRecursive(dirPath, directorySeparator);
+    }
+    public PathTreeNode? LookupPathRecursive(SymbolStoragePath dirStoragePath)
+    {
+      return rootNode.LookupPathRecursive(dirStoragePath.Path.AsSpan(), SymbolStoragePath.DirectorySeparator);
     }
   }
 
@@ -54,9 +60,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public PathTreeNode.Builder Root => PathTreeNode.Builder.CreateUnsafe(myRootNode);
 
-    public PathTreeNode.Builder AddPathRecursive(string path)
+    public PathTreeNode.Builder AddPathRecursive(string path, char directorySeparator)
     {
-      return Root.AddPathRecursive(path.AsSpan());
+      return Root.AddPathRecursive(path.AsSpan(), directorySeparator);
+    }
+    public PathTreeNode.Builder AddPathRecursive(SymbolStoragePath dirStoragePath)
+    {
+      return Root.AddPathRecursive(dirStoragePath.Path.AsSpan(), SymbolStoragePath.DirectorySeparator);
     }
 
     public PathTree Build()
@@ -70,7 +80,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
   /// </summary>
   internal sealed class PathTreeNode
   {
-    private static readonly List<string> EmptyList = new List<string>(0);
+    private static readonly List<SymbolStoragePath> EmptyList = new List<SymbolStoragePath>(0);
     private static readonly Dictionary<string, PathTreeNode> EmptyDict = new Dictionary<string, PathTreeNode>(0);
     
     public static PathTreeNode CreateRoot() => new PathTreeNode("", null);
@@ -82,7 +92,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     
     private readonly Lock myLock;
     private Dictionary<string, PathTreeNode>? myChildren;
-    private List<string>? myFiles;
+    private List<SymbolStoragePath>? myFiles;
     
     private long myReferences;
 
@@ -106,7 +116,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     {
       return myChildren?.Values ?? EmptyDict.Values;
     }
-    public IReadOnlyCollection<string> GetFiles()
+    public IReadOnlyCollection<SymbolStoragePath> GetFiles()
     {
       return myFiles ?? EmptyList;
     }
@@ -120,15 +130,17 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       return myChildren != null && myChildren.GetAlternateLookup<ReadOnlySpan<char>>().TryGetValue(part, out var value) ? value : null;
     }
     
-    public PathTreeNode? LookupPathRecursive(ReadOnlySpan<char> dirPath)
+    public PathTreeNode? LookupPathRecursive(ReadOnlySpan<char> dirPath, char directorySeparator)
     {
       PathTreeNode? node = this;
-      foreach (var partRange in dirPath.GetPathComponents())
-        node = node?.Lookup(dirPath[partRange]);
+      if (dirPath.Length > 0)
+      {
+        foreach (var partRange in dirPath.Split(directorySeparator))
+          node = node?.Lookup(dirPath[partRange]);
+      }
 
       return node;
     }
-    
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void IncrementReferences() => Interlocked.Increment(ref myReferences);
@@ -198,19 +210,19 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         }
       }
       
-      public void AddFile(string fileName)
+      public void AddFile(SymbolStoragePath file)
       {
         lock (myNode.myLock)
         {
-          myNode.myFiles ??= new List<string>();
-          myNode.myFiles.Add(fileName);
+          myNode.myFiles ??= new List<SymbolStoragePath>();
+          myNode.myFiles.Add(file);
         }
       }
       
-      public Builder AddPathRecursive(ReadOnlySpan<char> dirPath)
+      public Builder AddPathRecursive(ReadOnlySpan<char> dirPath, char directorySeparator)
       {
         var curNode = this;
-        foreach (var partRange in dirPath.GetPathComponents())
+        foreach (var partRange in dirPath.Split(directorySeparator))
           curNode = curNode.GetOrInsert(dirPath[partRange]);
         
         return curNode;

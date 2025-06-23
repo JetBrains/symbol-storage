@@ -13,7 +13,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     
     [JsonPropertyOrder(1000)]
     [JsonRequired]
-    public required SymbolPath[] Directories { get; set; }
+    public required SymbolStoragePath[] Directories { get; set; }
     
     [JsonPropertyOrder(1)]
     [JsonRequired]
