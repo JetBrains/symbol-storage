@@ -116,8 +116,11 @@ namespace JetBrains.SymbolStorage.Tests
     {
       using var storage = CreateStorage();
       var recordName = SymbolStoragePath.Combine("test_path", $"file_{Guid.NewGuid():N}.txt");
+      var recordName2 = new SymbolStoragePath($"file_{Guid.NewGuid():N}.txt");
       try
       {
+        await storage.Storage.DeleteAsync(recordName2);
+        
         Assert.IsFalse(await storage.Storage.ExistsAsync(recordName));
         await storage.Storage.DeleteAsync(recordName); // Expecting that it is fine to delete non-existed record
         
