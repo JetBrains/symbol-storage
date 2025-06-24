@@ -7,6 +7,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 {
   internal interface IStorage : IDisposable
   {
+    StorageRwMode RwMode { get; }
+    
     Task<bool> ExistsAsync(SymbolStoragePath file);
     Task DeleteAsync(SymbolStoragePath file);
     Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode);
