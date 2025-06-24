@@ -72,7 +72,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// </summary>
     /// <param name="srcStorage">Source storage</param>
     /// <returns>List of files and a flag that everything is OK</returns>
-    private async Task<(List<string> files, bool valid)> ValidateAndLoadFilesListFromStorage(IStorage srcStorage)
+    private async Task<(List<SymbolStoragePath> files, bool valid)> ValidateAndLoadFilesListFromStorage(IStorage srcStorage)
     {
       var validator = new StorageManager(myLogger, srcStorage, "Source");
       var srcStorageFormat = await validator.ValidateStorageMarkersAsync();
@@ -84,7 +84,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       var (statistics, _) = await validator.ValidateAndFixAsync(myDegreeOfParallelism, tagItems, files, srcStorageFormat, StorageManager.ValidateMode.Validate);
       myLogger.Info($"[{DateTime.Now:s}] Done with source validation (size: {totalSize.ToKibibyte()}, files: {files.Count + tagItems.Count}, warnings: {statistics.Warnings}, errors: {statistics.Errors})");
 
-      var srcFiles = new List<string>(tagItems.Count + files.Count);
+      var srcFiles = new List<SymbolStoragePath>(tagItems.Count + files.Count);
       srcFiles.AddRange(tagItems.Select(x => x.TagFile));
       srcFiles.AddRange(files);
       return (srcFiles, !statistics.HasProblems);
@@ -97,13 +97,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// <param name="srcStorage">Source storage</param>
     /// <param name="srcFiles">Files from source storage</param>
     /// <returns>List of files to upload + validation result</returns>
-    private async Task<(List<(string src, string dst)> srcDstPairs, bool valid)> BuildFilesListForUploading(IStorage srcStorage, List<string> srcFiles)
+    private async Task<(List<(SymbolStoragePath src, SymbolStoragePath dst)> srcDstPairs, bool valid)> BuildFilesListForUploading(IStorage srcStorage, List<SymbolStoragePath> srcFiles)
     {
       var dstValidator = new StorageManager(myLogger, myStorage, "Destination");
       var dstStorageFormat = await dstValidator.CreateOrValidateStorageMarkersAsync(myNewStorageFormat);
 
       myLogger.Info($"[{DateTime.Now:s}] Checking file compatibility...");
-      var uploadFiles = new List<(string src, string dst)>(srcFiles.Count);
+      var uploadFiles = new List<(SymbolStoragePath src, SymbolStoragePath dst)>(srcFiles.Count);
       var uploadFilesSync = new Lock();
 
       var statistics = new Statistics();
@@ -181,9 +181,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// <summary>
     /// Collision resolution logic
     /// </summary>
-    private async Task<bool> ProcessFileCollision(ILogger logger, IStorage dstStorage, IStorage? backupStorage, string srcFile, string dstFile)
+    private async Task<bool> ProcessFileCollision(ILogger logger, IStorage dstStorage, IStorage? backupStorage, SymbolStoragePath srcFile, SymbolStoragePath dstFile)
     {
-      var resolutionMode = srcFile.IsPeWithWeakHashFile() ? myPeCollisionResolutionMode : myCollisionResolutionMode;
+      var resolutionMode = srcFile.IsPeFileWithWeakHash() ? myPeCollisionResolutionMode : myCollisionResolutionMode;
       switch (resolutionMode)
       {
         case CollisionResolutionMode.Terminate:
@@ -213,7 +213,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// </summary>
     /// <param name="srcStorage">Source storage</param>
     /// <param name="uploadFiles">Files to be uploaded</param>
-    private async Task UploadFiles(IStorage srcStorage, List<(string src, string dst)> uploadFiles)
+    private async Task UploadFiles(IStorage srcStorage, List<(SymbolStoragePath src, SymbolStoragePath dst)> uploadFiles)
     {
       if (uploadFiles.Count <= 0)
         return;

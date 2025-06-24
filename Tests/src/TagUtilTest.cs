@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using JetBrains.SymbolStorage.Impl;
+using JetBrains.SymbolStorage.Impl.Storages;
 using JetBrains.SymbolStorage.Impl.Tags;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -36,7 +36,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(false, "foo.cs/sha1-497b72f6390a44fc878e5a2d63b6cc4b0c2d9984/foo.cs")]
     public void StorageFormatFileTest(bool expected, string file)
     {
-      Assert.AreEqual(expected, TagUtil.IsStorageFormatFile(file.NormalizeSystem()));
+      Assert.AreEqual(expected, TagUtil.IsStorageFormatFile(new SymbolStoragePath(file)));
     }
 
     [DataTestMethod]
@@ -63,7 +63,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(false, "foo.cs/sha1-497b72f6390a44fc878e5a2d63b6cc4b0c2d9984/foo.cs")]
     public void StorageCasingFileTest(bool expected, string file)
     {
-      Assert.AreEqual(expected, TagUtil.IsStorageCasingFile(file.NormalizeSystem()));
+      Assert.AreEqual(expected, TagUtil.IsStorageCasingFile(new SymbolStoragePath(file)));
     }
 
     [DataTestMethod]
@@ -90,7 +90,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(false, "foo.cs/sha1-497b72f6390a44fc878e5a2d63b6cc4b0c2d9984/foo.cs")]
     public void TagFileTest(bool expected, string file)
     {
-      Assert.AreEqual(expected, TagUtil.IsTagFile(file.NormalizeSystem()));
+      Assert.AreEqual(expected, TagUtil.IsTagFile(new SymbolStoragePath(file)));
     }
 
     [DataTestMethod]
@@ -115,7 +115,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataRow(true, "foo.cs/sha1-497b72f6390a44fc878e5a2d63b6cc4b0c2d9984/foo.cs")]
     public void DataFileTest(bool expected, string file)
     {
-      Assert.AreEqual(expected, TagUtil.IsDataFile(file.NormalizeSystem()));
+      Assert.AreEqual(expected, TagUtil.IsDataFile(new SymbolStoragePath(file)));
     }
 
     [TestMethod]
@@ -164,7 +164,7 @@ namespace JetBrains.SymbolStorage.Tests
       
       Assert.IsNotNull(tag.Directories);
       Assert.AreEqual(14, tag.Directories.Length);
-      Assert.AreEqual(PathUtil.NormalizeSystem("_.dwarf/mach-uuid-sym-f4635a2e35ca3ad2b7cf88c6c568282c"), tag.Directories[13]);
+      Assert.AreEqual(new SymbolStoragePath("_.dwarf/mach-uuid-sym-f4635a2e35ca3ad2b7cf88c6c568282c"), tag.Directories[13]);
     }
     
     [TestMethod]

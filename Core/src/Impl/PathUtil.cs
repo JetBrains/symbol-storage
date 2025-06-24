@@ -2,8 +2,8 @@
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
+using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl
 {
@@ -15,33 +15,29 @@ namespace JetBrains.SymbolStorage.Impl
 
     public static string GetPackedExtension(string ext)
     {
-      if (!ext.StartsWith("."))
+      return GetPackedExtension(ext.AsSpan());
+    }
+    public static string GetPackedExtension(ReadOnlySpan<char> ext)
+    {
+      if (!ext.StartsWith('.'))
         throw new Exception("Invalid extension format");
       if (ext.Length < 1)
         throw new Exception("At least one symbol in extension is expected");
-      return ext.Substring(0, ext.Length - 1) + '_';
+      
+      return string.Concat(ext.Slice(0, ext.Length - 1), "_".AsSpan());
     }
     
-    public static string[] GetPathComponents(this string? path) => string.IsNullOrEmpty(path) ? Array.Empty<string>() : path.Split(Path.DirectorySeparatorChar);
-    
-    public static MemoryExtensions.SpanSplitEnumerator<char> GetPathComponents(this ReadOnlySpan<char> path)
-    {
-      if (path.Length == 0)
-        return new MemoryExtensions.SpanSplitEnumerator<char>();
-      return path.Split(Path.DirectorySeparatorChar);
-    }
-
     public enum ValidateAndFixErrors
     {
       Ok,
       CanBeFixed,
       Error
     }
-
-    public static ValidateAndFixErrors ValidateAndFixDataPath(this string path, StorageFormat storageFormat, out string fixedPath)
+    
+    public static ValidateAndFixErrors ValidateAndFixDataPath(this SymbolStoragePath storagePath, StorageFormat storageFormat, out SymbolStoragePath fixedStoragePath)
     {
-      fixedPath = path;
-      var parts = path.GetPathComponents();
+      fixedStoragePath = storagePath;
+      var parts = storagePath.GetPathComponents();
       if (parts.Length != 2 && parts.Length != 3)
         return ValidateAndFixErrors.Error;
       if (parts.Any(x => x.Length == 0))
@@ -54,8 +50,8 @@ namespace JetBrains.SymbolStorage.Impl
           var namePartLower = parts[0].ToLowerInvariant();
           var hashPartLower = parts[1].ToLowerInvariant();
 
-          var nameExt = Path.GetExtension(namePartLower);
-          if (nameExt == PdbExt)
+          var nameExt = Path.GetExtension(namePartLower.AsSpan());
+          if (nameExt is PdbExt)
           {
             if (!hashPartLower.All(IsHex))
               return ValidateAndFixErrors.Error;
@@ -68,7 +64,7 @@ namespace JetBrains.SymbolStorage.Impl
                 hashPartLower = hashPartLower.Substring(0, 32) + "FFFFFFFF";
             }
           }
-          else if (nameExt == DllExt || nameExt == ExeExt)
+          else if (nameExt is DllExt || nameExt is ExeExt)
           {
             if (!hashPartLower.All(IsHex))
               return ValidateAndFixErrors.Error;
@@ -82,13 +78,13 @@ namespace JetBrains.SymbolStorage.Impl
 
           var builder = new StringBuilder()
             .Append(namePartLower)
-            .Append(Path.DirectorySeparatorChar)
+            .Append(SymbolStoragePath.DirectorySeparator)
             .Append(hashPartLower);
 
           if (parts.Length > 2)
           {
             var filePartLower = parts[2].ToLowerInvariant();
-            if (filePartLower.EndsWith("_"))
+            if (filePartLower.EndsWith('_'))
             {
               if (namePartLower.Substring(0, namePartLower.Length - 1) != filePartLower.Substring(0, namePartLower.Length - 1))
                 return ValidateAndFixErrors.Error;
@@ -97,31 +93,31 @@ namespace JetBrains.SymbolStorage.Impl
               return ValidateAndFixErrors.Error;
 
             builder
-              .Append(Path.DirectorySeparatorChar)
+              .Append(SymbolStoragePath.DirectorySeparator)
               .Append(filePartLower);
           }
 
           var newPath = builder.ToString();
-          if (newPath == path)
+          if (storagePath == newPath)
             return ValidateAndFixErrors.Ok;
 
-          fixedPath = newPath;
+          fixedStoragePath = new SymbolStoragePath(newPath);
           return ValidateAndFixErrors.CanBeFixed;
         }
       case StorageFormat.LowerCase:
         {
-          var pathOrig = path.ToLowerInvariant();
-          if (path == pathOrig)
+          var pathOrig = storagePath.ToLower();
+          if (storagePath == pathOrig)
             return ValidateAndFixErrors.Ok;
-          fixedPath = pathOrig;
+          fixedStoragePath = pathOrig;
           return ValidateAndFixErrors.CanBeFixed;
         }
       case StorageFormat.UpperCase:
         {
-          var pathOrig = path.ToUpperInvariant();
-          if (path == pathOrig)
+          var pathOrig = storagePath.ToUpper();
+          if (storagePath == pathOrig)
             return ValidateAndFixErrors.Ok;
-          fixedPath = pathOrig;
+          fixedStoragePath = pathOrig;
           return ValidateAndFixErrors.CanBeFixed;
         }
       default:
@@ -134,36 +130,24 @@ namespace JetBrains.SymbolStorage.Impl
       ch >= '0' && ch <= '9' ||
       ch >= 'a' && ch <= 'f' ||
       ch >= 'A' && ch <= 'F';
-
-    public static string CheckSystemFile(this string? file)
-    {
-      if (string.IsNullOrEmpty(file))
-        throw new ArgumentNullException(nameof(file));
-      if (Path.DirectorySeparatorChar == file[0] ||
-          Path.DirectorySeparatorChar == file[^1])
-        throw new ArgumentException(null, nameof(file));
-      if (file.Contains(RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? '/' : '\\'))
-        throw new ArgumentException(null, nameof(file));
-      return file;
-    }
     
-    public static string NormalizeLinux(this string path)
+    public static string NormalizeLinux(string path)
     {
       if (path == null)
         throw new ArgumentNullException(nameof(path));
       return path.Replace('\\', '/');
     }
 
-    public static string NormalizeSystem(this string path)
+    public static string NormalizeSystem(string path)
     {
       if (path == null)
         throw new ArgumentNullException(nameof(path));
       return path.Replace('/', Path.DirectorySeparatorChar);
     }
     
-    public static bool IsPeWithWeakHashFile(this string path)
+    public static bool IsPeFileWithWeakHash(this SymbolStoragePath path)
     {
-      var extension = Path.GetExtension(path.AsSpan());
+      var extension = SymbolStoragePath.GetExtension(path.AsRef());
       if (extension.Length != 4)
         return false;
 
@@ -178,7 +162,7 @@ namespace JetBrains.SymbolStorage.Impl
       }
 
       // Check for weak hash
-      var directory = Path.GetFileName(Path.GetDirectoryName(path.AsSpan()));
+      var directory = SymbolStoragePath.GetFileName(SymbolStoragePath.GetDirectoryName(path.AsRef()));
       if (directory.Length <= 8 || directory.Length > 18)
         return false;
 

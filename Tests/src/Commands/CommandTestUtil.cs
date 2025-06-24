@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using JetBrains.SymbolStorage.Impl;
 using Microsoft.SymbolStore;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
@@ -32,12 +31,12 @@ namespace JetBrains.SymbolStorage.Tests.Commands
       return result;
     }
     
-    public static string GetPePathInStorage(string name, Stream content)
+    public static SymbolStoragePath GetPePathInStorage(string name, Stream content)
     {
       var keyGenerator = new PEFileKeyGenerator(new DummyTracer(), new SymbolStoreFile(content, name));
       Assert.IsTrue(keyGenerator.IsValid());
       var key = keyGenerator.GetKeys(KeyTypeFlags.IdentityKey).Single();
-      return key.Index.NormalizeSystem();
+      return SymbolStoragePath.FromSystemPath(key.Index);
     }
     
     public static byte[] CreatePortablePdbFile(Guid pdbId, char contentByte)
@@ -48,15 +47,15 @@ namespace JetBrains.SymbolStorage.Tests.Commands
       return result;
     }
     
-    public static string GetPortablePdbPathInStorage(string name, Stream content)
+    public static SymbolStoragePath GetPortablePdbPathInStorage(string name, Stream content)
     {
       var keyGenerator = new PortablePDBFileKeyGenerator(new DummyTracer(), new SymbolStoreFile(content, name));
       Assert.IsTrue(keyGenerator.IsValid());
       var key = keyGenerator.GetKeys(KeyTypeFlags.IdentityKey).Single();
-      return key.Index.NormalizeSystem();
+      return SymbolStoragePath.FromSystemPath(key.Index);
     }
     
-    public static async Task WriteTag(IStorage storage, string product, string version, IEnumerable<string> dirs)
+    public static async Task WriteTag(IStorage storage, string product, string version, IEnumerable<SymbolStoragePath> dirs)
     {
       var fileId = Guid.NewGuid();
       using var stream = new MemoryStream();
@@ -69,13 +68,13 @@ namespace JetBrains.SymbolStorage.Tests.Commands
         CreationUtcTime = DateTime.UtcNow,
         IsProtected = false,
         Properties = [],
-        Directories = dirs.OrderBy(x => x, StringComparer.Ordinal).Distinct().ToArray()
+        Directories = dirs.OrderBy(x => x).Distinct().ToArray()
       }, stream);
 
       await storage.CreateForWritingAsync(TagUtil.MakeTagFile(new Identity(product, version), fileId), AccessMode.Private, stream);
     }
 
-    public static async Task<byte[]> LoadFileFromStorage(IStorage storage, string path)
+    public static async Task<byte[]> LoadFileFromStorage(IStorage storage, SymbolStoragePath path)
     {
       var memoryStream = new MemoryStream();
       await storage.OpenForReadingAsync(path, async srcStream =>

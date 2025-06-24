@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Logger;
+using JetBrains.SymbolStorage.Impl.Storages;
 using Microsoft.SymbolStore;
 using Microsoft.SymbolStore.KeyGenerators;
 
@@ -17,8 +18,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly bool myCompressWPdb;
     private readonly bool myIsKeepNonCompressed;
     private readonly ILogger myLogger;
-    private readonly Func<ITracer, string, string, string, Task> myProcessNormal;
-    private readonly Func<ITracer, string, string, string, Task> myProcessCompressed;
+    private readonly Func<ITracer, string, string, SymbolStoragePath, Task> myProcessNormal;
+    private readonly Func<ITracer, string, string, SymbolStoragePath, Task> myProcessCompressed;
     private readonly IEnumerable<string> mySources;
 
     public LocalFilesScanner(
@@ -28,8 +29,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       bool compressWPdb,
       bool isKeepNonCompressed,
       IEnumerable<string> sourcePaths,
-      Func<ITracer, string, string, string, Task> processNormal,
-      Func<ITracer, string, string, string, Task> processPacked,
+      Func<ITracer, string, string, SymbolStoragePath, Task> processNormal,
+      Func<ITracer, string, string, SymbolStoragePath, Task> processPacked,
       string? baseDir = null)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -84,18 +85,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         }
         else
         {
-          var dstFile = index.NormalizeSystem();
+          var dstFile = index;
           if (
             myCompressWPdb && keyType == KeyType.WPdb ||
             myCompressPe && keyType == KeyType.Pe)
           {
-            await myProcessCompressed(tracer, sourceDir, srcFile, Path.ChangeExtension(dstFile, PathUtil.GetPackedExtension(Path.GetExtension(dstFile))));
+            await myProcessCompressed(tracer, sourceDir, srcFile, SymbolStoragePath.FromSystemPath(Path.ChangeExtension(dstFile, PathUtil.GetPackedExtension(Path.GetExtension(dstFile.AsSpan())))));
             if (myIsKeepNonCompressed)
-              await myProcessNormal(tracer, sourceDir, srcFile, dstFile);
+              await myProcessNormal(tracer, sourceDir, srcFile, SymbolStoragePath.FromSystemPath(dstFile));
           }
           else
           {
-            await myProcessNormal(tracer, sourceDir, srcFile, dstFile);
+            await myProcessNormal(tracer, sourceDir, srcFile, SymbolStoragePath.FromSystemPath(dstFile));
           }
         }
       }

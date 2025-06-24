@@ -12,14 +12,15 @@ namespace JetBrains.SymbolStorage.Impl.Tags
 {
   internal static class TagUtil
   {
-    private const string TagDirectory = "_jb.tags";
+    private const string TagDirectoryStr = "_jb.tags";
+    private static readonly SymbolStoragePath TagDirectory = new SymbolStoragePath(TagDirectoryStr);
     private const string TagExtension = ".tag";
-    private static readonly string TagDirectoryPathPrefix = TagDirectory + Path.DirectorySeparatorChar;
+    private const string TagDirectoryPathPrefix = TagDirectoryStr + SymbolStoragePath.DirectorySeparatorString;
     private static readonly JsonSerializerOptions JsonCommonSerializerOptions = new JsonSerializerOptions() { WriteIndented = true };
 
-    public static string MakeTagFile(Identity identity, Guid fileId)
+    public static SymbolStoragePath MakeTagFile(Identity identity, Guid fileId)
     {
-      return Path.Combine(TagDirectory, identity.Product, identity.Product + '-' + identity.Version + '-' + fileId.ToString("N") + TagExtension);
+      return SymbolStoragePath.Combine(TagDirectory, new SymbolStoragePath(identity.Product), new SymbolStoragePath(identity.Product + '-' + identity.Version + '-' + fileId.ToString("N") + TagExtension));
     }
     
     public static async Task<Tag> ReadTagScriptAsync(Stream stream)
@@ -27,48 +28,42 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       var tag = await JsonSerializer.DeserializeAsync<Tag>(stream);
       if (tag == null)
         throw new ArgumentException("Expected to read tag object in json format, but null received");
-      tag.Directories = tag.Directories.Select(PathUtil.NormalizeSystem).ToArray();
       return tag;
     }
 
     public static async Task WriteTagScriptAsync(Tag tag, Stream stream)
     {
-      var tmp = tag with
-      {
-        Directories = tag.Directories.Select(PathUtil.NormalizeLinux).ToArray()
-      };
-      
-      await JsonSerializer.SerializeAsync(stream, tmp, JsonCommonSerializerOptions);
+      await JsonSerializer.SerializeAsync(stream, tag, JsonCommonSerializerOptions);
     }
 
     public static async Task<List<TagFileData>> GetAllTagScriptsAsync(
       this IStorage storage,
       int degreeOfParallelism,
-      Action<string>? progress = null)
+      Action<SymbolStoragePath>? progress = null)
     {
       if (storage == null)
         throw new ArgumentNullException(nameof(storage));
       return await storage.GetChildrenAsync(ChildrenMode.Default, TagDirectory).ParallelForAsync(degreeOfParallelism, async item =>
         {
-          var file = item.Name;
+          var file = item.FileName;
           progress?.Invoke(file);
           return new TagFileData(file, await storage.OpenForReadingAsync(file, ReadTagScriptAsync));
         });
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsStorageFormatFile(string file) =>
+    public static bool IsStorageFormatFile(SymbolStoragePath file) =>
       file == Markers.Flat ||
       file == Markers.SingleTier ||
       file == Markers.TwoTier;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool IsStorageCasingFile(string file) =>
+    public static bool IsStorageCasingFile(SymbolStoragePath file) =>
       file == Markers.LowerCase ||
       file == Markers.UpperCase;
 
-    public static bool IsTagFile(string file) => file.StartsWith(TagDirectoryPathPrefix);
-    public static bool IsDataFile(string file) => !(IsStorageFormatFile(file) || IsStorageCasingFile(file) || IsTagFile(file));
+    public static bool IsTagFile(SymbolStoragePath file) => file.Path.StartsWith(TagDirectoryPathPrefix);
+    public static bool IsDataFile(SymbolStoragePath file) => !(IsStorageFormatFile(file) || IsStorageCasingFile(file) || IsTagFile(file));
 
     public static bool ValidateProduct(string? product) => !string.IsNullOrEmpty(product) && product.All(IsValidProduct);
     public static bool ValidateVersion(string? version) => !string.IsNullOrEmpty(version) && version.All(IsValidVersion);

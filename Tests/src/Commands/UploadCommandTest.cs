@@ -21,7 +21,7 @@ namespace JetBrains.SymbolStorage.Tests.Commands
       var targetStorageDir = Path.Combine(testDir, "dest");
       try
       {
-        var createdFiles = new List<(string path, long size)>();
+        var createdFiles = new List<(SymbolStoragePath path, long size)>();
         using (var sourceStorage = new FileSystemStorage(sourceStorageDir))
         {
           var newCommand = new NewCommand(new DummyLogger(), sourceStorage, StorageFormat.Normal);
@@ -35,7 +35,7 @@ namespace JetBrains.SymbolStorage.Tests.Commands
             var path = CommandTestUtil.GetPePathInStorage($"minexe_{i % 5}.exe", fileStream);
             fileStream.Seek(0, SeekOrigin.Begin);
             await sourceStorage.CreateForWritingAsync(path, AccessMode.Public, fileStream);
-            await CommandTestUtil.WriteTag(sourceStorage, "minexe", $"v1.0.{i}", [Path.GetDirectoryName(path)!]);
+            await CommandTestUtil.WriteTag(sourceStorage, "minexe", $"v1.0.{i}", [SymbolStoragePath.GetDirectoryName(path)!.Value]);
             createdFiles.Add((path, file.Length));
           }
           
@@ -46,7 +46,7 @@ namespace JetBrains.SymbolStorage.Tests.Commands
             var path = CommandTestUtil.GetPortablePdbPathInStorage($"minpdb_{i}.pdb", fileStream);
             fileStream.Seek(0, SeekOrigin.Begin);
             await sourceStorage.CreateForWritingAsync(path, AccessMode.Public, fileStream);
-            await CommandTestUtil.WriteTag(sourceStorage, "minpdb", $"v1.1.{i}", [Path.GetDirectoryName(path)!]);
+            await CommandTestUtil.WriteTag(sourceStorage, "minpdb", $"v1.1.{i}", [SymbolStoragePath.GetDirectoryName(path)!.Value]);
             createdFiles.Add((path, file.Length));
           }
         }
@@ -83,7 +83,7 @@ namespace JetBrains.SymbolStorage.Tests.Commands
       
       try
       {
-        string pePathInStorage;
+        SymbolStoragePath pePathInStorage;
         byte[] origPeFile;
         byte[] changedPeFile;
         DateTime baseTime = DateTime.Now;
@@ -99,7 +99,7 @@ namespace JetBrains.SymbolStorage.Tests.Commands
           pePathInStorage = path;
           fileStream.Seek(0, SeekOrigin.Begin);
           await sourceStorage1.CreateForWritingAsync(path, AccessMode.Public, fileStream);
-          await CommandTestUtil.WriteTag(sourceStorage1, "minexe", $"v1.0.0", [Path.GetDirectoryName(path)!]);
+          await CommandTestUtil.WriteTag(sourceStorage1, "minexe", $"v1.0.0", [SymbolStoragePath.GetDirectoryName(path)!.Value]);
           origPeFile = file;
         }
         
@@ -114,7 +114,7 @@ namespace JetBrains.SymbolStorage.Tests.Commands
           Assert.AreEqual(pePathInStorage, path);
           fileStream.Seek(0, SeekOrigin.Begin);
           await sourceStorage2.CreateForWritingAsync(path, AccessMode.Public, fileStream);
-          await CommandTestUtil.WriteTag(sourceStorage2, "minexe", $"v1.0.1", [Path.GetDirectoryName(path)!]);
+          await CommandTestUtil.WriteTag(sourceStorage2, "minexe", $"v1.0.1", [SymbolStoragePath.GetDirectoryName(path)!.Value]);
           changedPeFile = file;
         }
         
