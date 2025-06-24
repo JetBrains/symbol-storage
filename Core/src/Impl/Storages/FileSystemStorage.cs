@@ -50,8 +50,12 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     public async Task DeleteAsync(SymbolStoragePath file)
     {
       await Task.Yield();
-      File.Delete(SymbolPathToDiskPath(file));
-      TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(file)) ?? "");
+      var filePath = SymbolPathToDiskPath(file);
+      if (File.Exists(filePath))
+      {
+        File.Delete(filePath);
+        TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(file)) ?? "");
+      }
     }
 
     public async Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode)
@@ -153,7 +157,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       await Task.Yield();
       var stack = new Stack<string>();
-      stack.Push(prefixDir != null ? SymbolPathToDiskPath(prefixDir.Value) : myRootDir);
+      if (prefixDir != null)
+      {
+        var prefixDiskPath = SymbolPathToDiskPath(prefixDir.Value);
+        if (!Directory.Exists(prefixDiskPath))
+          yield break;
+        stack.Push(prefixDiskPath);
+      }
+      else
+      {
+        stack.Push(myRootDir);
+      }
       
       while (stack.Count > 0)
       {
