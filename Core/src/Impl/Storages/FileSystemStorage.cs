@@ -56,6 +56,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return SymbolStoragePath.FromSystemPath(diskPath, basePath: myRootDir);
     }
     
+    public StorageRwMode RwMode => StorageRwMode.ReadWrite;
+    
     public async Task<bool> ExistsAsync(SymbolStoragePath file)
     {
       await Task.Yield();
