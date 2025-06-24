@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="AWSSDK.CloudFront" Version="4.0.0.5" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.0.7" />
+    <PackageReference Include="DotNext.Threading" Version="5.22.0" />
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />
     <PackageReference Include="Microsoft.SymbolStore" Version="1.0.627602" />
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />
