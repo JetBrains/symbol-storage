@@ -1,20 +1,34 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using DotNext.Threading;
 
 namespace JetBrains.SymbolStorage.Impl.Storages
 {
   internal sealed class FileSystemStorage : IStorage
   {
     private readonly string myRootDir;
+    /// <summary>
+    /// ReaderWriter lock that makes <see cref="FileSystemStorage"/> thread-safe.
+    /// Since the file system is atomic by itself, we should only use an exclusive lock (write-lock)
+    /// to protect complex, multi-stage modification operations. All atomic modification operations
+    /// or read-only operations only need to acquire read-lock.
+    /// </summary>
+    /// <remarks>
+    /// Note(ilia.kopylov): ReaderWriterLock is not the most efficient solution, but it is very simple.
+    /// It can be replaced with a tree-based synchronization solution in the future.
+    /// </remarks>
+    private readonly AsyncReaderWriterLock myRwLock;
 
     public FileSystemStorage(string rootDir)
     {
       myRootDir = rootDir ?? throw new ArgumentNullException(nameof(rootDir));
       Directory.CreateDirectory(myRootDir);
+      myRwLock = new AsyncReaderWriterLock();
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,71 +58,78 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     public async Task<bool> ExistsAsync(SymbolStoragePath file)
     {
       await Task.Yield();
-      return File.Exists(SymbolPathToDiskPath(file));
+      using (await myRwLock.AcquireReadLockAsync())
+      {
+        return File.Exists(SymbolPathToDiskPath(file)); 
+      }
     }
 
     public async Task DeleteAsync(SymbolStoragePath file)
     {
       await Task.Yield();
-      var filePath = SymbolPathToDiskPath(file);
-      try
+      using (await myRwLock.AcquireWriteLockAsync())
       {
-        File.Delete(filePath);
-        TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(file)) ?? "");
-      }
-      catch (DirectoryNotFoundException)
-      {
-        // Allow DirectoryNotFoundException, because it means, that there is no such file in the storage.
-        // Due to concurrent execution File.Exists check can't help here
+        var filePath = SymbolPathToDiskPath(file);
+        if (File.Exists(filePath))
+        {
+          File.Delete(filePath);
+          TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(file)) ?? "");
+        }
       }
     }
 
     public async Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode)
     {
       await Task.Yield();
-      var tempExt = '.' + Guid.NewGuid().ToString("N") + ".tmp";
-
-      var dstDir = Path.GetDirectoryName(SymbolPathToRelativeDiskPath(dstFile));
-      var fullDir = myRootDir;
-      foreach (var part in string.IsNullOrEmpty(dstDir) ? [] : dstDir.Split(Path.DirectorySeparatorChar))
+      using (await myRwLock.AcquireWriteLockAsync())
       {
-        var newFullDir = Path.Combine(fullDir, part);
+        var tempExt = '.' + Guid.NewGuid().ToString("N") + ".tmp";
 
-        // Note: Should works on casing-insensitive file system!!! 
-        var realDir = Directory.GetDirectories(fullDir, part).FirstOrDefault();
-        if (realDir == null)
-          Directory.CreateDirectory(newFullDir);
-        else if (realDir != newFullDir)
+        var dstDir = Path.GetDirectoryName(SymbolPathToRelativeDiskPath(dstFile));
+        var fullDir = myRootDir;
+        foreach (var part in string.IsNullOrEmpty(dstDir) ? [] : dstDir.Split(Path.DirectorySeparatorChar))
         {
-          var tempDir = newFullDir + tempExt;
-          Directory.Move(realDir, tempDir);
-          Directory.Move(tempDir, newFullDir);
+          var newFullDir = Path.Combine(fullDir, part);
+
+          // Note: Should works on casing-insensitive file system!!! 
+          var realDir = Directory.GetDirectories(fullDir, part).FirstOrDefault();
+          if (realDir == null)
+            Directory.CreateDirectory(newFullDir);
+          else if (realDir != newFullDir)
+          {
+            var tempDir = newFullDir + tempExt;
+            Directory.Move(realDir, tempDir);
+            Directory.Move(tempDir, newFullDir);
+          }
+
+          fullDir = newFullDir;
         }
 
-        fullDir = newFullDir;
+        var newFileName = Path.GetFileName(SymbolPathToRelativeDiskPath(dstFile));
+        var fullNewFile = Path.Combine(fullDir, newFileName);
+
+        // Note: Should works on casing-insensitive file system!!!
+        var realFullFile = Directory.GetFiles(fullDir, newFileName).FirstOrDefault();
+        if (realFullFile == null)
+          File.Move(SymbolPathToDiskPath(srcFile), fullNewFile);
+        else if (realFullFile != fullNewFile)
+        {
+          var tempFile = fullNewFile + tempExt;
+          File.Move(SymbolPathToDiskPath(srcFile), tempFile);
+          File.Move(tempFile, fullNewFile);
+        }
+
+        TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(srcFile)) ?? "");
       }
-
-      var newFileName = Path.GetFileName(SymbolPathToRelativeDiskPath(dstFile));
-      var fullNewFile = Path.Combine(fullDir, newFileName);
-
-      // Note: Should works on casing-insensitive file system!!!
-      var realFullFile = Directory.GetFiles(fullDir, newFileName).FirstOrDefault();
-      if (realFullFile == null)
-        File.Move(SymbolPathToDiskPath(srcFile), fullNewFile);
-      else if (realFullFile != fullNewFile)
-      {
-        var tempFile = fullNewFile + tempExt;
-        File.Move(SymbolPathToDiskPath(srcFile), tempFile);
-        File.Move(tempFile, fullNewFile);
-      }
-
-      TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(srcFile)) ?? "");
     }
 
     public async Task<long> GetLengthAsync(SymbolStoragePath file)
     {
       await Task.Yield();
-      return new FileInfo(SymbolPathToDiskPath(file)).Length;
+      using (await myRwLock.AcquireReadLockAsync())
+      {
+        return new FileInfo(SymbolPathToDiskPath(file)).Length;
+      }
     }
 
     public bool SupportAccessMode => false;
@@ -125,11 +146,12 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task<TResult> OpenForReadingAsync<TResult>(SymbolStoragePath file, Func<Stream, Task<TResult>> func)
     {
-      if (func == null)
-        throw new ArgumentNullException(nameof(func));
       await Task.Yield();
-      await using var stream = File.OpenRead(SymbolPathToDiskPath(file));
-      return await func(stream);
+      using (await myRwLock.AcquireReadLockAsync())
+      {
+        await using var stream = File.OpenRead(SymbolPathToDiskPath(file));
+        return await func(stream);
+      }
     }
 
     public Task OpenForReadingAsync(SymbolStoragePath file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
@@ -147,50 +169,62 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       await Task.Yield();
       stream.Seek(0, SeekOrigin.Begin);
       var fullFile = SymbolPathToDiskPath(file);
-      Directory.CreateDirectory(Path.GetDirectoryName(fullFile) ?? "");
-      await using var outStream = File.Create(fullFile);
-      await stream.CopyToAsync(outStream);
+      
+      // This operation consists of two phases and should normally acquire a writer lock.
+      // However, we assume that no other read-lock-acquiring operations will fail if a new directory or file appears.
+      using (await myRwLock.AcquireReadLockAsync())
+      {
+        Directory.CreateDirectory(Path.GetDirectoryName(fullFile) ?? "");
+        await using var outStream = File.Create(fullFile);
+        await stream.CopyToAsync(outStream); 
+      }
     }
 
     public async Task<bool> IsEmptyAsync()
     {
       await Task.Yield();
-      return !Directory.EnumerateFileSystemEntries(myRootDir).Any();
+      using (await myRwLock.AcquireReadLockAsync())
+      {
+        return !Directory.EnumerateFileSystemEntries(myRootDir).Any();
+      }
     }
 
     public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolStoragePath? prefixDir = null)
     {
       await Task.Yield();
-      var stack = new Stack<string>();
-      if (prefixDir != null)
+      using (await myRwLock.AcquireReadLockAsync())
       {
-        var prefixDiskPath = SymbolPathToDiskPath(prefixDir.Value);
-        if (!Directory.Exists(prefixDiskPath))
-          yield break;
-        stack.Push(prefixDiskPath);
-      }
-      else
-      {
-        stack.Push(myRootDir);
-      }
-      
-      while (stack.Count > 0)
-      {
-        var dir = stack.Pop();
-        foreach (var path in Directory.EnumerateFileSystemEntries(dir))
+        var stack = new Stack<string>();
+        if (prefixDir != null)
         {
-          var file = new FileInfo(path);
-          if ((file.Attributes & FileAttributes.Directory) == 0)
+          var prefixDiskPath = SymbolPathToDiskPath(prefixDir.Value);
+          if (!Directory.Exists(prefixDiskPath))
+            yield break;
+          stack.Push(prefixDiskPath);
+        }
+        else
+        {
+          stack.Push(myRootDir);
+        }
+
+        while (stack.Count > 0)
+        {
+          var dir = stack.Pop();
+          foreach (var path in Directory.EnumerateFileSystemEntries(dir))
           {
-            yield return new ChildrenItem
+            var file = new FileInfo(path);
+            if ((file.Attributes & FileAttributes.Directory) == 0)
             {
-              FileName = DiskPathToSymbolPath(path),
-              Size = (mode & ChildrenMode.WithSize) != 0 ? file.Length : null
-            };
-          }
-          else
-          {
-            stack.Push(path);
+              yield return new ChildrenItem
+              {
+                FileName = DiskPathToSymbolPath(path),
+                Size = (mode & ChildrenMode.WithSize) != 0 ? file.Length : null
+              };
+            }
+            else
+            {
+              stack.Push(path);
+            }
           }
         }
       }
@@ -203,6 +237,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     private void TryRemoveEmptyDirsToRootDir(string dir)
     {
+      Debug.Assert(myRwLock.IsWriteLockHeld);
+      
       while (!string.IsNullOrEmpty(dir))
       {
         var fullDir = Path.Combine(myRootDir, dir);
