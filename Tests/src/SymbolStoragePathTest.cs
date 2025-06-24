@@ -1,8 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
-using JetBrains.SymbolStorage.Impl;
 using JetBrains.SymbolStorage.Impl.Storages;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
