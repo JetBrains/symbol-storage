@@ -51,10 +51,15 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     {
       await Task.Yield();
       var filePath = SymbolPathToDiskPath(file);
-      if (File.Exists(filePath))
+      try
       {
         File.Delete(filePath);
         TryRemoveEmptyDirsToRootDir(Path.GetDirectoryName(SymbolPathToRelativeDiskPath(file)) ?? "");
+      }
+      catch (DirectoryNotFoundException)
+      {
+        // Allow DirectoryNotFoundException, because it means, that there is no such file in the storage.
+        // Due to concurrent execution File.Exists check can't help here
       }
     }
 
