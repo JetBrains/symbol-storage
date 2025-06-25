@@ -11,7 +11,7 @@ using JetBrains.SymbolStorage.Impl.Tags;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class UploadCommand : ICommand
+  internal sealed class UploadCommand : IStatsReportingCommand
   {
     private readonly ILogger myLogger;
     private readonly string mySource;
@@ -21,6 +21,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly CollisionResolutionMode myPeCollisionResolutionMode;
     private readonly string? myBackupStorageDir;
     private readonly int myDegreeOfParallelism;
+    private long mySubOpsCount;
 
     public UploadCommand(
       ILogger logger,
@@ -45,11 +46,16 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myBackupStorageDir = (collisionResolutionMode == CollisionResolutionMode.Overwrite || peCollisionResolutionMode == CollisionResolutionMode.Overwrite) ? backupStorageDir : null;
     }
 
+    public long SubOperationsCount => Volatile.Read(ref mySubOpsCount);
+    
     public async Task<int> ExecuteAsync()
     {
+      Volatile.Write(ref mySubOpsCount, 0);
+      
       using var srcStorage = new FileSystemStorage(mySource);
 
       var (srcFiles, isValid) = await ValidateAndLoadFilesListFromStorage(srcStorage);
+      Volatile.Write(ref mySubOpsCount, srcFiles.Count);
       if (!isValid)
       {
         myLogger.Error("Found some issues in source storage, uploading was interrupted");
