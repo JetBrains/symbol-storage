@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
@@ -7,13 +8,14 @@ using JetBrains.SymbolStorage.Impl.Tags;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class ProtectedCommand : ICommand
+  internal sealed class ProtectedCommand : IStatsReportingCommand
   {
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
     private readonly int myDegreeOfParallelism;
     private readonly IdentityFilter myIdentityFilter;
     private readonly bool myIsProtected;
+    private long mySubOpsCount;
 
     public ProtectedCommand(
       ILogger logger,
@@ -28,9 +30,13 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myIdentityFilter = identityFilter ?? throw new ArgumentNullException(nameof(identityFilter));
       myIsProtected = isProtected;
     }
+    
+    public long SubOperationsCount => Volatile.Read(ref mySubOpsCount);
 
     public async Task<int> ExecuteAsync()
     {
+      Volatile.Write(ref mySubOpsCount, 0);
+      
       var validator = new StorageManager(myLogger, myStorage);
       await validator.ValidateStorageMarkersAsync();
       var (tagItems, _) = await validator.LoadTagItemsAsync(myDegreeOfParallelism, myIdentityFilter, null, !myIsProtected);
@@ -40,6 +46,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myLogger.Info($"[{DateTime.Now:s}] Updating tag files");
       await tagItems.ParallelForAsync(myDegreeOfParallelism, async tagItem =>
         {
+          Interlocked.Increment(ref mySubOpsCount);
           var tagFile = tagItem.TagFile;
           myLogger.Verbose($"  Updating {tagFile}...");
 

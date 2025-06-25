@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,7 +9,7 @@ using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class DumpCommand : ICommand
+  internal sealed class DumpCommand : IStatsReportingCommand
   {
     private readonly string myBaseDir;
     private readonly int myDegreeOfParallelism;
@@ -19,6 +18,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly ILogger myLogger;
     private readonly IReadOnlyCollection<string> mySources;
     private readonly string mySymbolReferenceFile;
+    private long mySubOpsCount;
 
     public DumpCommand(
       ILogger logger,
@@ -38,14 +38,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myBaseDir = baseDir ?? throw new ArgumentNullException(nameof(baseDir));
     }
 
+    public long SubOperationsCount => Volatile.Read(ref mySubOpsCount);
+    
     public async Task<int> ExecuteAsync()
     {
+      Volatile.Write(ref mySubOpsCount, 0);
       var map = new List<KeyValuePair<string, SymbolStoragePath>>();
       var mapSyncObj = new Lock();
       
       var statistics = await new LocalFilesScanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, false, mySources,
         (_, _, srcFile, dstFile) =>
           {
+            Interlocked.Increment(ref mySubOpsCount);
             lock (mapSyncObj)
             {
               map.Add(KeyValuePair.Create(srcFile, dstFile));
@@ -54,6 +58,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           },
         (_, _, srcFile, dstFile) =>
           {
+            Interlocked.Increment(ref mySubOpsCount);
             lock (mapSyncObj)
             {
               map.Add(KeyValuePair.Create(srcFile, dstFile));
