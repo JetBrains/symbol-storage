@@ -70,5 +70,13 @@ namespace JetBrains.SymbolStorage.Impl.Logger
         Console.ResetColor();
       }
     }
+    
+    public static void WriteText(string str)
+    {
+      lock (ourLock)
+      {
+        Console.Error.WriteLine(str);
+      }
+    }
   }
 }

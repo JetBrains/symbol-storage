@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
@@ -11,7 +12,7 @@ using JetBrains.SymbolStorage.Impl.Tags;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class CreateCommand : ICommand
+  internal sealed class CreateCommand : IStatsReportingCommand
   {
     private readonly StorageFormat myExpectedStorageFormat;
     private readonly bool myIsCompressPe;
@@ -25,6 +26,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly Identity myIdentity;
     private readonly int myDegreeOfParallelism;
     private readonly bool myIsProtected;
+    private long mySubOpsCount;
 
     public CreateCommand(
       ILogger logger,
@@ -54,14 +56,18 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       mySources = sources ?? throw new ArgumentNullException(nameof(sources));
     }
 
+    public long SubOperationsCount => Volatile.Read(ref mySubOpsCount);
+
     public async Task<int> ExecuteAsync()
     {
+      Volatile.Write(ref mySubOpsCount, 0);
       await new StorageManager(myLogger, myStorage).CreateStorageMarkersAsync(myExpectedStorageFormat);
 
       var dstFiles = new ConcurrentDictionary<SymbolStoragePath, bool>();
       var statistics = await new LocalFilesScanner(myLogger, myDegreeOfParallelism, myIsCompressPe, myIsCompressWPdb, myIsKeepNonCompressed, mySources,
         async (tracer, srcDir, srcFile, dstFile) =>
           {
+            Interlocked.Increment(ref mySubOpsCount);
             if (dstFiles.TryAdd(dstFile, false))
               await WriteData(Path.Combine(srcDir, srcFile), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
             else
@@ -69,6 +75,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           },
         async (tracer, srcDir, srcFile, dstFile) =>
           {
+            Interlocked.Increment(ref mySubOpsCount);
             if (dstFiles.TryAdd(dstFile, false))
               await WriteDataPacked(Path.Combine(srcDir, srcFile), dstFile.IntoSystemPath(), stream => myStorage.CreateForWritingAsync(dstFile, AccessMode.Public, stream));
             else
