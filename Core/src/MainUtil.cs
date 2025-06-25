@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
@@ -34,15 +35,16 @@ namespace JetBrains.SymbolStorage
     //   255\* - Exit status out of range
     public static byte Main(Assembly mainAssembly, string[] args, MainMode mode)
     {
+      Stopwatch sw = Stopwatch.StartNew();
       try
       {
         var assemblyName = mainAssembly.GetName();
         var toolName = assemblyName.Name;
         var toolVersion = assemblyName.Version!.ToString(3);
         var commandLine = new CommandLineApplication
-          {
-            FullName = toolName
-          };
+        {
+          FullName = toolName
+        };
         commandLine.HelpOption("-h|--help");
         commandLine.VersionOption("--version", () => toolVersion);
 
@@ -78,7 +80,7 @@ namespace JetBrains.SymbolStorage
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
                 AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
                 aclOption.HasValue(),
-                fixOption.HasValue()).ExecuteAsync());
+                fixOption.HasValue()).WithTimeReportingToConsole().ExecuteAsync());
             });
 
           static void SafetyPeriodOptions(
@@ -114,7 +116,7 @@ namespace JetBrains.SymbolStorage
                   incFilterVersionOption.Values,
                   excFilterVersionOption.Values),
                 ParseDays(safetyPeriodOption.Value(), defaultDays: null),
-                ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedAll)).ExecuteAsync());
+                ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedAll)).WithTimeReportingToConsole().ExecuteAsync());
             });
 
           commandLine.Command("delete", x =>
@@ -136,7 +138,7 @@ namespace JetBrains.SymbolStorage
                   excFilterProductOption.Values,
                   incFilterVersionOption.Values,
                   excFilterVersionOption.Values),
-                ParseDays(safetyPeriodOption.Value(), defaultDays: AccessUtil.DefaultSafetyPeriod).Value).ExecuteAsync());
+                ParseDays(safetyPeriodOption.Value(), defaultDays: AccessUtil.DefaultSafetyPeriod).Value).WithTimeReportingToConsole().ExecuteAsync());
             });
         }
 
@@ -155,7 +157,7 @@ namespace JetBrains.SymbolStorage
             x.OnExecute(() => new NewCommand(
               new ConsoleLogger(verboseOption.HasValue()),
               AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).ExecuteAsync());
+              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).WithTimeReportingToConsole().ExecuteAsync());
           });
 
         commandLine.Command("upload", x =>
@@ -175,7 +177,7 @@ namespace JetBrains.SymbolStorage
               AccessUtil.GetStorageFormat(newStorageFormatOption.Value()),
               collisionResolutionMode: AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value()),
               peCollisionResolutionMode: AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value())),
-              backupStorageDir: backupStorage.Value()).ExecuteAsync());
+              backupStorageDir: backupStorage.Value()).WithTimeReportingToConsole().ExecuteAsync());
           });
 
         commandLine.Command("create", x =>
@@ -207,7 +209,7 @@ namespace JetBrains.SymbolStorage
                 var parsedPeCollisionResolutionMode = AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), parsedCollisionResolutionMode);
                 if ((parsedCollisionResolutionMode == CollisionResolutionMode.Overwrite || parsedPeCollisionResolutionMode == CollisionResolutionMode.Overwrite) && !backupStorage.HasValue())
                   throw new ArgumentException("Backup directory must be specified when collision resolution mode is 'overwrite'");
-                
+
                 try
                 {
                   var res = await new CreateCommand(
@@ -224,7 +226,7 @@ namespace JetBrains.SymbolStorage
                     compressWPdbOption.HasValue(),
                     keepNonCompressedOption.HasValue(),
                     properties,
-                    sources).ExecuteAsync();
+                    sources).WithTimeReportingToConsole().ExecuteAsync();
                   if (res != 0)
                     return res;
 
@@ -236,7 +238,7 @@ namespace JetBrains.SymbolStorage
                     newStorageFormat,
                     parsedCollisionResolutionMode,
                     parsedPeCollisionResolutionMode,
-                    backupStorage.Value()).ExecuteAsync();
+                    backupStorage.Value()).WithTimeReportingToConsole().ExecuteAsync();
                 }
                 finally
                 {
@@ -244,7 +246,7 @@ namespace JetBrains.SymbolStorage
                 }
               });
           });
-        
+
         commandLine.Command("dump", x =>
           {
             x.HelpOption("-h|--help");
@@ -265,7 +267,7 @@ namespace JetBrains.SymbolStorage
                   compressWPdbOption.HasValue(),
                   symbolReferenceFileOption.Value,
                   sources,
-                  baseDirOption.Value).ExecuteAsync();
+                  baseDirOption.Value).WithTimeReportingToConsole().ExecuteAsync();
               });
           });
 
@@ -288,14 +290,14 @@ namespace JetBrains.SymbolStorage
                 excFilterProductOption.Values,
                 incFilterVersionOption.Values,
                 excFilterVersionOption.Values),
-              !clearOption.HasValue()).ExecuteAsync());
+              !clearOption.HasValue()).WithTimeReportingToConsole().ExecuteAsync());
           });
 
         if (args.Length != 0)
         {
           var res = commandLine.Execute(args);
           if (0 <= res && res < 126)
-            return (byte) res;
+            return (byte)res;
           return 255;
         }
 
@@ -306,6 +308,10 @@ namespace JetBrains.SymbolStorage
       {
         ConsoleLogger.Exception(e);
         return 126;
+      }
+      finally
+      {
+        ConsoleLogger.WriteText($"Total execution time: {sw.Elapsed}");
       }
     }
 

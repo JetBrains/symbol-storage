@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Logger;
 using JetBrains.SymbolStorage.Impl.Storages;
@@ -7,13 +8,14 @@ using JetBrains.SymbolStorage.Impl.Tags;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
 {
-  internal sealed class DeleteCommand : ICommand
+  internal sealed class DeleteCommand : IStatsReportingCommand
   {
     private readonly ILogger myLogger;
     private readonly IStorage myStorage;
     private readonly TimeSpan mySafetyPeriod;
     private readonly int myDegreeOfParallelism;
     private readonly IdentityFilter myIdentityFilter;
+    private long mySubOpsCount;
 
     public DeleteCommand(
       ILogger logger,
@@ -29,8 +31,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       mySafetyPeriod = safetyPeriod;
     }
 
+    public long SubOperationsCount => Volatile.Read(ref mySubOpsCount);
+    
     public async Task<int> ExecuteAsync()
     {
+      Volatile.Write(ref mySubOpsCount, 0);
       var validator = new StorageManager(myLogger, myStorage);
       var storageFormat = await validator.ValidateStorageMarkersAsync();
 
@@ -47,6 +52,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           {
             var file = tagItem.TagFile;
             myLogger.Info($"  Deleting {file}");
+            Interlocked.Increment(ref mySubOpsCount);
             await myStorage.DeleteAsync(file);
           });
 
