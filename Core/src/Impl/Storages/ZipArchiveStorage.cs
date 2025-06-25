@@ -25,7 +25,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static SymbolStoragePath ZipPathToSymbolPath(string zipPath)
     {
-      return SymbolStoragePath.FromSystemPath(zipPath);
+      return new SymbolStoragePath(zipPath);
     }
     
     public StorageRwMode RwMode { get; }
@@ -54,9 +54,20 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       throw new NotImplementedException();
     }
 
-    public Task<long> GetLengthAsync(SymbolStoragePath file)
+    public async Task<long> GetLengthAsync(SymbolStoragePath file)
     {
-      throw new NotImplementedException();
+      if (!CanRead)
+        throw new InvalidOperationException("ZipFileStorage created without Read access");
+
+      await Task.Yield();
+      using (var archive = await myProvider.RentAsync())
+      {
+        var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
+        if (entry == null)
+          throw new KeyNotFoundException("Specified file was not found in zip storage");
+        
+        return entry.Length;
+      }
     }
 
     public bool SupportAccessMode => false;
