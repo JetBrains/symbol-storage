@@ -44,9 +44,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task DeleteAsync(SymbolStoragePath file)
+    public async Task DeleteAsync(SymbolStoragePath file)
     {
-      throw new NotImplementedException();
+      if (!CanWrite)
+        throw new InvalidOperationException("ZipFileStorage created without Write access");
+
+      await Task.Yield();
+      using (var archive = await myProvider.RentAsync())
+      {
+        var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
+        entry?.Delete();
+      }
     }
 
     public Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode)
@@ -108,7 +116,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public Task InvalidateExternalServicesAsync(IEnumerable<SymbolStoragePath>? fileMasks = null)
     {
-      throw new NotImplementedException();
+      return Task.CompletedTask;
     }
     
     public void Dispose()
