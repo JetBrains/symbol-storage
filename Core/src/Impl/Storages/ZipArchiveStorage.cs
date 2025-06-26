@@ -57,9 +57,28 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       }
     }
 
-    public Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode)
+    public async Task RenameAsync(SymbolStoragePath srcFile, SymbolStoragePath dstFile, AccessMode mode)
     {
-      throw new NotImplementedException();
+      if (!CanWrite)
+        throw new InvalidOperationException("ZipFileStorage created without Write access");
+
+      await Task.Yield();
+      using (var archive = await myProvider.RentAsync())
+      {
+        var srcEntry = archive.Archive.GetEntry(SymbolPathToZipPath(srcFile));
+        if (srcEntry == null)
+          throw new KeyNotFoundException($"Specified file ({srcFile}) was not found in zip storage");
+
+        var targetEntry = archive.Archive.CreateEntry(SymbolPathToZipPath(dstFile));
+        
+        await using (var srcStream = srcEntry.Open())
+        await using (var dstStream = targetEntry.Open())
+        {
+          await srcStream.CopyToAsync(dstStream);
+        }
+        
+        srcEntry.Delete();
+      }
     }
 
     public async Task<long> GetLengthAsync(SymbolStoragePath file)
@@ -72,7 +91,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       {
         var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
         if (entry == null)
-          throw new KeyNotFoundException("Specified file was not found in zip storage");
+          throw new KeyNotFoundException($"Specified file ({file}) was not found in zip storage");
         
         return entry.Length;
       }
@@ -89,29 +108,84 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return Task.CompletedTask;
     }
 
-    public Task<TResult> OpenForReadingAsync<TResult>(SymbolStoragePath file, Func<Stream, Task<TResult>> func)
+    public async Task<TResult> OpenForReadingAsync<TResult>(SymbolStoragePath file, Func<Stream, Task<TResult>> func)
     {
-      throw new NotImplementedException();
+      if (!CanRead)
+        throw new InvalidOperationException("ZipFileStorage created without Read access");
+
+      await Task.Yield();
+      using (var archive = await myProvider.RentAsync())
+      {
+        var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
+        if (entry == null)
+          throw new KeyNotFoundException($"Specified file ({file}) was not found in zip storage");
+
+        await using (var srcStream = entry.Open())
+        {
+          return await func(srcStream);
+        }
+      }
     }
 
-    public Task OpenForReadingAsync(SymbolStoragePath file, Func<Stream, Task> func)
+    public Task OpenForReadingAsync(SymbolStoragePath file, Func<Stream, Task> func) => OpenForReadingAsync(file, async x =>
     {
-      throw new NotImplementedException();
+      await func(x);
+      return true;
+    });
+
+    public async Task CreateForWritingAsync(SymbolStoragePath file, AccessMode mode, Stream stream)
+    {
+      if (!CanWrite)
+        throw new InvalidOperationException("ZipFileStorage created without Write access");
+
+      await Task.Yield();
+      using (var archive = await myProvider.RentAsync())
+      {
+        var existedEntry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
+        existedEntry?.Delete();
+        
+        var entry = archive.Archive.CreateEntry(SymbolPathToZipPath(file));
+        await using (var destStream = entry.Open())
+        {
+          await stream.CopyToAsync(destStream);
+          destStream.Close();
+        }
+      }
     }
 
-    public Task CreateForWritingAsync(SymbolStoragePath file, AccessMode mode, Stream stream)
+    public async Task<bool> IsEmptyAsync()
     {
-      throw new NotImplementedException();
+      if (!CanRead)
+        throw new InvalidOperationException("ZipFileStorage created without Read access");
+      
+      await Task.Yield();
+      using (var archive = await myProvider.RentAsync())
+      {
+        return archive.Archive.Entries.Count == 0;
+      }
     }
 
-    public Task<bool> IsEmptyAsync()
+    public async IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolStoragePath? prefixDir = null)
     {
-      throw new NotImplementedException();
-    }
-
-    public IAsyncEnumerable<ChildrenItem> GetChildrenAsync(ChildrenMode mode, SymbolStoragePath? prefixDir = null)
-    {
-      throw new NotImplementedException();
+      if (!CanRead)
+        throw new InvalidOperationException("ZipFileStorage created without Read access");
+      
+      await Task.Yield();
+      using (var archive = await myProvider.RentAsync())
+      {
+        string? prefix = prefixDir != null ? SymbolPathToZipPath(prefixDir.Value) + "/" : null;
+        
+        foreach (var zipArchiveEntry in archive.Archive.Entries)
+        {
+          if (prefix != null && !zipArchiveEntry.FullName.StartsWith(prefix))
+            continue;
+          
+          yield return new ChildrenItem(
+            ZipPathToSymbolPath(zipArchiveEntry.FullName),
+            mode == ChildrenMode.WithSize ? zipArchiveEntry.Length : null
+          );
+        }
+      }
     }
 
     public Task InvalidateExternalServicesAsync(IEnumerable<SymbolStoragePath>? fileMasks = null)
