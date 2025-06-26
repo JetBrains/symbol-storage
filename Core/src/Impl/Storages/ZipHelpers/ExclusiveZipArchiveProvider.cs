@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,33 +8,47 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
 {
   internal class ExclusiveZipArchiveProvider : ZipArchiveProvider
   {
+    private static ZipArchiveMode ZipArchiveStorageRwModeToZipArchiveMode(ZipArchiveStorageRwMode mode) => mode switch
+    {
+      ZipArchiveStorageRwMode.Create => ZipArchiveMode.Create,
+      ZipArchiveStorageRwMode.Read => ZipArchiveMode.Read,
+      ZipArchiveStorageRwMode.ReadWrite => ZipArchiveMode.Update,
+      ZipArchiveStorageRwMode.ReadWithAutoWritePromotion => ZipArchiveMode.Read,
+      _ => throw new ArgumentException($"Unknown ZipArchiveStorageRwMode: {mode}", nameof(mode))
+    };
+    
     private readonly SemaphoreSlim myLock;
     private readonly ZipArchiveContainer myArchive;
-    private readonly ZipArchiveMode myArchiveMode;
     private readonly long myMaxDirtyBytes;
 
-    public ExclusiveZipArchiveProvider(string archivePath, ZipArchiveMode mode = ZipArchiveMode.Update, long maxDirtyBytes = long.MaxValue)
+    public ExclusiveZipArchiveProvider(string archivePath, ZipArchiveStorageRwMode mode = ZipArchiveStorageRwMode.ReadWrite, long maxDirtyBytes = long.MaxValue)
     {
       ArchivePath = archivePath;
       myLock = new SemaphoreSlim(1, 1);
-      myArchive = ZipArchiveContainer.Open(archivePath, mode);
-      myArchiveMode = mode;
+      myArchive = ZipArchiveContainer.Open(archivePath, ZipArchiveStorageRwModeToZipArchiveMode(mode));
       myMaxDirtyBytes = maxDirtyBytes;
       Mode = mode;
     }
     
     public string ArchivePath { get; }
-    public override ZipArchiveMode Mode { get; }
+    public override ZipArchiveStorageRwMode Mode { get; }
 
-    public override async Task<ZipArchiveGuard> RentAsync()
+    public override async Task<ZipArchiveGuard> RentAsync(bool writable)
     {
+      Debug.Assert(
+        (writable && (Mode == ZipArchiveStorageRwMode.Create || Mode == ZipArchiveStorageRwMode.ReadWrite || Mode == ZipArchiveStorageRwMode.ReadWithAutoWritePromotion)) ||
+        (!writable && (Mode == ZipArchiveStorageRwMode.Read || Mode == ZipArchiveStorageRwMode.ReadWrite || Mode == ZipArchiveStorageRwMode.ReadWithAutoWritePromotion)));
+      
       await myLock.WaitAsync();
+      if (writable && Mode == ZipArchiveStorageRwMode.ReadWithAutoWritePromotion && myArchive.CurrentArchiveMode != ZipArchiveMode.Update)
+        myArchive.PromoteToUpdateModeIfNeeded();
+      
       return new ZipArchiveGuard(myArchive, this);
     }
 
     internal override void Release(ZipArchiveContainer archive)
     {
-      if (myArchiveMode == ZipArchiveMode.Update && archive.DirtyBytes > myMaxDirtyBytes)
+      if (archive.CurrentArchiveMode == ZipArchiveMode.Update && archive.DirtyBytes > myMaxDirtyBytes)
       {
         archive.Reopen();
       }

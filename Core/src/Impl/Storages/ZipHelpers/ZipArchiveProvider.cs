@@ -6,9 +6,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
 {
   internal abstract class ZipArchiveProvider : IDisposable
   {
-    public abstract ZipArchiveMode Mode { get; }
+    public abstract ZipArchiveStorageRwMode Mode { get; }
     
-    public abstract Task<ZipArchiveGuard> RentAsync();
+    public abstract Task<ZipArchiveGuard> RentAsync(bool writable);
     internal abstract void Release(ZipArchiveContainer archive);
 
 
