@@ -106,6 +106,7 @@ namespace JetBrains.SymbolStorage
                 out var excFilterVersionOption);
               SafetyPeriodOptions(x, null, out var safetyPeriodOption);
               var filterProtectedOption = x.Option("-fr|--protected-filter", $"Filter by protected value: {AccessUtil.ProtectedAll}, {AccessUtil.ProtectedOn} and {AccessUtil.ProtectedOff}. The default is {AccessUtil.ProtectedAll}.", CommandOptionType.SingleValue);
+              var printFileSizesOption = x.Option("-sz|--file-sizes", "Print file sizes", CommandOptionType.NoValue);
               x.OnExecute(() => new ListCommand(
                 new ConsoleLogger(verboseOption.HasValue()),
                 AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
@@ -116,7 +117,8 @@ namespace JetBrains.SymbolStorage
                   incFilterVersionOption.Values,
                   excFilterVersionOption.Values),
                 ParseDays(safetyPeriodOption.Value(), defaultDays: null),
-                ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedAll)).WithTimeReportingToConsole().ExecuteAsync());
+                ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedAll),
+                printFileSizesOption.HasValue()).WithTimeReportingToConsole().ExecuteAsync());
             });
 
           commandLine.Command("delete", x =>
