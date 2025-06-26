@@ -14,7 +14,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private readonly IdentityFilter myIdentityFilter;
     private readonly TimeSpan? myMinItemAgeFilter;
     private readonly bool? myProtectedFilter;
-    private readonly bool myLoadFileSizes;
+    private readonly bool myPrintFileSizes;
 
     public ListCommand(
       ILogger logger,
@@ -23,7 +23,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       IdentityFilter identityFilter,
       TimeSpan? minItemAgeFilter,
       bool? protectedFilter,
-      bool loadFileSizes)
+      bool printFileSizes)
     {
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
       myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
@@ -31,7 +31,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       myIdentityFilter = identityFilter ?? throw new ArgumentNullException(nameof(identityFilter));
       myMinItemAgeFilter = minItemAgeFilter;
       myProtectedFilter = protectedFilter;
-      myLoadFileSizes = loadFileSizes;
+      myPrintFileSizes = printFileSizes;
     }
 
     public async Task<int> ExecuteAsync()
@@ -41,7 +41,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       validator.DumpProducts(tagItems);
       validator.DumpProperties(tagItems);
 
-      if (myLoadFileSizes)
+      if (myPrintFileSizes)
       {
         var (fileSizes, totalSize) = await validator.GetFileSizesAsync(tagItems);
         validator.DumpFileSizes(fileSizes);
