@@ -131,6 +131,48 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           myLogger.Info($"    {value}");
       }
     }
+    
+    public async Task<(List<KeyValuePair<TagFileData, long>> sizes, long totalSize)> GetFileSizesAsync(IEnumerable<TagFileData> tagItems)
+    {
+      myLogger.Info($"[{DateTime.Now:s}] Loading file sizes{myId}...");
+      long totalSize = 0;
+      var sizesPerTag = new List<KeyValuePair<TagFileData, long>>();
+      var processedFiles = new HashSet<SymbolStoragePath>();
+      
+      foreach (var tagItem in tagItems)
+      {
+        long tagSize = 0;
+        foreach (var tagDirectory in tagItem.Tag.Directories)
+        {
+          await foreach (var fileInfo in myStorage.GetChildrenAsync(ChildrenMode.WithSize, tagDirectory))
+          {
+            if (fileInfo.Size != null)
+            {
+              tagSize += fileInfo.Size.Value;
+              if (processedFiles.Add(fileInfo.FileName))
+                totalSize += fileInfo.Size.Value;
+            }
+            else
+            {
+              myLogger.Error($"Unable to get file size {fileInfo.FileName}");
+            }
+          }
+        }
+        
+        sizesPerTag.Add(new KeyValuePair<TagFileData, long>(tagItem, tagSize));
+      }
+
+      return (sizesPerTag, totalSize);
+    }
+    
+    public void DumpFileSizes(IEnumerable<KeyValuePair<TagFileData, long>> sizes)
+    {
+      myLogger.Info($"[{DateTime.Now:s}] File sizes{myId}...");
+      foreach (var tagInfo in sizes)
+      {
+        myLogger.Info($"  {tagInfo.Key.Tag.Product} [{tagInfo.Key.Tag.Version}]: {tagInfo.Value.ToKibibyte()}");
+      }
+    }
 
     public enum ValidateMode
     {
