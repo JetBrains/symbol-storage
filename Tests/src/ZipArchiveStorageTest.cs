@@ -102,5 +102,22 @@ namespace JetBrains.SymbolStorage.Tests
         _ = await storage.Storage.GetLengthAsync(recordNameNonExisted);
       });
     }
+    
+    [TestMethod]
+    public async Task DeleteromPreallocatedStorageTest()
+    {
+      using var storage = CreateStorageWithFiles([Path.Combine("abc", "bcd.bin")], RwMode.ReadWrite);
+      var recordName = SymbolStoragePath.Combine("abc", "bcd.bin");
+      var recordNameNonExisted = SymbolStoragePath.Combine("abc", "www.dat");
+      
+      Assert.IsTrue(await storage.Storage.ExistsAsync(recordName));
+      Assert.IsFalse(await storage.Storage.ExistsAsync(recordNameNonExisted));
+      
+      await storage.Storage.DeleteAsync(recordName);
+      Assert.IsFalse(await storage.Storage.ExistsAsync(recordName));
+      
+      await storage.Storage.DeleteAsync(recordNameNonExisted);
+      Assert.IsFalse(await storage.Storage.ExistsAsync(recordNameNonExisted));
+    }
   }
 }
