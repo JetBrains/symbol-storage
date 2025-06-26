@@ -24,7 +24,6 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public const string ProtectedAll = "all";
     public const string ProtectedOn = "protected";
     public const string ProtectedOff = "unprotected";
-    public const string ProtectedDefault = ProtectedOff;
     
     public const string CollisionResolutionTerminate = "terminate";
     public const string CollisionResolutionKeepExisted = "keepexisted";
