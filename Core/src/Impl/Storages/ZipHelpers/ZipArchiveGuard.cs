@@ -27,7 +27,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
     public long GetEntryLength(ZipArchiveEntry entry)
     {
       Debug.Assert(myProvider != null);
-      if (myProvider.Mode == ZipArchiveMode.Update && IsNewlyCreatedEntry(entry))
+      if (Archive.Mode == ZipArchiveMode.Update && IsNewlyCreatedEntry(entry))
       {
         using (var stream = entry.Open())
         {

@@ -15,18 +15,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
     }
     
     private readonly string myArchivePath;
-    private readonly ZipArchiveMode myArchiveMode;
     
     private ZipArchiveContainer(string archivePath, ZipArchive archive, DateTimeOffset openedAt)
     {
       myArchivePath = archivePath;
-      myArchiveMode = archive.Mode;
       Archive = archive;
       OpenedAt = openedAt;
       DirtyBytes = 0;
     }
     
     public ZipArchive Archive { get; private set; }
+    public ZipArchiveMode CurrentArchiveMode => Archive.Mode;
     public DateTimeOffset OpenedAt { get; private set; }
     public long DirtyBytes { get; private set; }
     
@@ -49,6 +48,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
     }
 
     /// <summary>
+    /// Reopens archive file. Also can change its mode
+    /// </summary>
+    private void Reopen(ZipArchiveMode newMode)
+    {
+      Archive.Dispose();
+      OpenedAt = DateTimeOffset.Now; // Get time before opening the archive
+      Archive = ZipFile.Open(myArchivePath, newMode);
+      DirtyBytes = 0;
+    }
+
+    /// <summary>
     /// Reopens archive file
     /// </summary>
     /// <remarks>
@@ -58,10 +68,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
     /// </remarks>
     public void Reopen()
     {
-      Archive.Dispose();
-      OpenedAt = DateTimeOffset.Now; // Get time before opening the archive
-      Archive = ZipFile.Open(myArchivePath, myArchiveMode);
-      DirtyBytes = 0;
+      Reopen(CurrentArchiveMode);
+    }
+    
+    public void PromoteToUpdateModeIfNeeded()
+    {
+      if (CurrentArchiveMode != ZipArchiveMode.Update)
+        Reopen(ZipArchiveMode.Update);
     }
 
     public void Dispose()

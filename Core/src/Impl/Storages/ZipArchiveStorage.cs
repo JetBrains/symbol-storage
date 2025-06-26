@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Storages.ZipHelpers;
@@ -12,15 +11,23 @@ namespace JetBrains.SymbolStorage.Impl.Storages
   {
     private readonly ZipArchiveProvider myProvider;
     
-    public ZipArchiveStorage(string archivePath, StorageRwMode mode, int? concurrencyLevel = null, long? maxDirtyBytes = null)
+    public ZipArchiveStorage(string archivePath, ZipArchiveStorageRwMode mode, int? concurrencyLevel = null, long? maxDirtyBytes = null)
     {
-      RwMode = mode;
+      RwMode = mode switch
+      {
+        ZipArchiveStorageRwMode.Read => StorageRwMode.Read,
+        ZipArchiveStorageRwMode.Create => StorageRwMode.Create,
+        ZipArchiveStorageRwMode.ReadWrite => StorageRwMode.ReadWrite,
+        ZipArchiveStorageRwMode.ReadWithAutoWritePromotion => StorageRwMode.ReadWrite,
+        _ => throw new ArgumentException("Unknown RW Mode: " + mode.ToString())
+      };
 
       myProvider = mode switch
       {
-        StorageRwMode.Read => new ExclusiveZipArchiveProvider(archivePath, mode: ZipArchiveMode.Read, maxDirtyBytes: long.MaxValue),
-        StorageRwMode.Create => new ExclusiveZipArchiveProvider(archivePath, mode: ZipArchiveMode.Create, maxDirtyBytes: long.MaxValue),
-        StorageRwMode.ReadWrite => new ExclusiveZipArchiveProvider(archivePath, mode: ZipArchiveMode.Update, maxDirtyBytes: maxDirtyBytes ?? long.MaxValue),
+        ZipArchiveStorageRwMode.Read => new ExclusiveZipArchiveProvider(archivePath, maxDirtyBytes: long.MaxValue),
+        ZipArchiveStorageRwMode.Create => new ExclusiveZipArchiveProvider(archivePath, mode, maxDirtyBytes: long.MaxValue),
+        ZipArchiveStorageRwMode.ReadWrite => new ExclusiveZipArchiveProvider(archivePath, mode, maxDirtyBytes: maxDirtyBytes ?? long.MaxValue),
+        ZipArchiveStorageRwMode.ReadWithAutoWritePromotion => new ExclusiveZipArchiveProvider(archivePath, mode, maxDirtyBytes: maxDirtyBytes ?? long.MaxValue),
         _ => throw new ArgumentException("Unknown RW Mode: " + mode.ToString())
       };
     }
@@ -47,7 +54,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Read access");
 
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: false))
       {
         return archive.Archive.GetEntry(SymbolPathToZipPath(file)) != null;
       }
@@ -59,7 +66,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Write access");
 
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: true))
       {
         var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
         entry?.Delete();
@@ -72,7 +79,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Write access");
 
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: true))
       {
         var srcEntry = archive.Archive.GetEntry(SymbolPathToZipPath(srcFile));
         if (srcEntry == null)
@@ -95,7 +102,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Read access");
 
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: false))
       {
         var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
         if (entry == null)
@@ -128,7 +135,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Read access");
 
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: false))
       {
         var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
         if (entry == null)
@@ -153,7 +160,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Write or Create access");
 
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: true))
       {
         if (CanWrite)
         {
@@ -172,7 +179,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Read access");
       
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: false))
       {
         return archive.Archive.Entries.Count == 0;
       }
@@ -184,7 +191,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Read access");
       
       await Task.Yield();
-      using (var archive = await myProvider.RentAsync())
+      using (var archive = await myProvider.RentAsync(writable: false))
       {
         string? prefix = prefixDir != null ? SymbolPathToZipPath(prefixDir.Value) + "/" : null;
         
