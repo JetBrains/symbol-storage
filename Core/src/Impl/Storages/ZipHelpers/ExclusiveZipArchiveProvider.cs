@@ -20,6 +20,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
     private readonly SemaphoreSlim myLock;
     private readonly ZipArchiveContainer myArchive;
     private readonly long myMaxDirtyBytes;
+    private volatile bool myIsDisposed;
 
     public ExclusiveZipArchiveProvider(string archivePath, ZipArchiveStorageRwMode mode = ZipArchiveStorageRwMode.ReadWrite, long maxDirtyBytes = long.MaxValue)
     {
@@ -28,6 +29,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
       myArchive = ZipArchiveContainer.Open(archivePath, ZipArchiveStorageRwModeToZipArchiveMode(mode));
       myMaxDirtyBytes = maxDirtyBytes;
       Mode = mode;
+      myIsDisposed = false;
     }
     
     public string ArchivePath { get; }
@@ -58,7 +60,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
 
     protected override void Dispose(bool disposing)
     {
-      if (disposing)
+      if (disposing && !myIsDisposed)
       {
         myLock.Wait();
         try
@@ -69,6 +71,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
         {
           myLock.Release();
         }
+
+        myLock.Dispose();
+        myIsDisposed = true;
       }
     }
   }
