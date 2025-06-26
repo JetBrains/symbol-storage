@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
+using JetBrains.SymbolStorage.Impl;
 using JetBrains.SymbolStorage.Impl.Storages;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -29,10 +30,10 @@ namespace JetBrains.SymbolStorage.Tests
       _ => throw new ArgumentException("unknown rw mode")
     };
     
-    private readonly struct StorageHolder(string path, ZipArchiveStorageRwMode rwMode, long? maxDirtyBytes) : IDisposable
+    private readonly struct StorageHolder(string path, ZipArchiveStorageRwMode rwMode, long? maxDirtyBytes, int? concurrencyLevel) : IDisposable
     {
       public string ArchivePath { get; } = path;
-      public ZipArchiveStorage Storage { get; } = new(path, rwMode, concurrencyLevel: null, maxDirtyBytes: maxDirtyBytes);
+      public ZipArchiveStorage Storage { get; } = new(path, rwMode, concurrencyLevel: concurrencyLevel, maxDirtyBytes: maxDirtyBytes);
 
       public void Close()
       {
@@ -52,9 +53,9 @@ namespace JetBrains.SymbolStorage.Tests
     {
       var tempDir = Path.Combine(Path.GetTempPath(), $"zipstorage-{Guid.NewGuid():N}");
       Directory.CreateDirectory(tempDir);
-      return new StorageHolder(Path.Combine(tempDir, "archive.zip"), ConvertRwMode(rwMode), maxDirtyBytes);
+      return new StorageHolder(Path.Combine(tempDir, "archive.zip"), ConvertRwMode(rwMode), maxDirtyBytes, concurrencyLevel: null);
     }
-    private static StorageHolder CreateStorageWithFiles(IEnumerable<string> files, RwMode rwMode = RwMode.ReadWrite, long? maxDirtyBytes = null)
+    private static StorageHolder CreateStorageWithFiles(IEnumerable<string> files, RwMode rwMode = RwMode.ReadWrite, long? maxDirtyBytes = null, int? concurrencyLevel = null)
     {
       var tempDir = Path.Combine(Path.GetTempPath(), $"zipstorage-{Guid.NewGuid():N}");
       Directory.CreateDirectory(tempDir);
@@ -73,7 +74,7 @@ namespace JetBrains.SymbolStorage.Tests
       var archiveFile = Path.Combine(tempDir, "archive.zip");
       ZipFile.CreateFromDirectory(filesDir, archiveFile);
       
-      return new StorageHolder(archiveFile, ConvertRwMode(rwMode), maxDirtyBytes);
+      return new StorageHolder(archiveFile, ConvertRwMode(rwMode), maxDirtyBytes, concurrencyLevel);
     }
 
 
@@ -512,6 +513,28 @@ namespace JetBrains.SymbolStorage.Tests
         Assert.IsTrue(await storageForRead.ExistsAsync(file1));
         Assert.IsTrue(await storageForRead.ExistsAsync(file2));
       }
+    }
+    
+    [TestMethod]
+    public async Task StorageInConcurrentReadModeTest()
+    {
+      SymbolStoragePath[] files =
+      [
+        new("test_path_1/file_1.dat"),
+        new("test_path_1/file_2.dat"),
+        new("test_path_2/file_3.dat"),
+      ];
+      
+      using var storage = CreateStorageWithFiles(files.Select(o => o.IntoSystemPath()), RwMode.Read, concurrencyLevel: 8);
+
+      await Enumerable.Range(0, 1000).ParallelForAsync(Math.Max(8, Environment.ProcessorCount), async i =>
+      {
+        var file = files[Random.Shared.Next(files.Length)];
+        var memoryStream = new MemoryStream();
+        await storage.Storage.OpenForReadingAsync(file, async stream => { await stream.CopyToAsync(memoryStream); });
+
+        Assert.IsTrue(OurTestData.SequenceEqual(memoryStream.ToArray()));
+      });
     }
   }
 }
