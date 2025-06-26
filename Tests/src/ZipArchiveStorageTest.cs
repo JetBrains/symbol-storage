@@ -15,22 +15,22 @@ namespace JetBrains.SymbolStorage.Tests
     public enum RwMode
     {
       Read,
-      Write,
+      Create,
       ReadWrite
     }
 
     private static StorageRwMode ConvertRwMode(RwMode mode) => mode switch
     {
       RwMode.Read => StorageRwMode.Read,
-      RwMode.Write => StorageRwMode.Write,
+      RwMode.Create => StorageRwMode.Create,
       RwMode.ReadWrite => StorageRwMode.ReadWrite,
       _ => throw new ArgumentException("unknown rw mode")
     };
     
-    private readonly struct StorageHolder(string path, StorageRwMode rwMode) : IDisposable
+    private readonly struct StorageHolder(string path, StorageRwMode rwMode, long? maxDirtyBytes) : IDisposable
     {
       public string ArchivePath { get; } = path;
-      public ZipArchiveStorage Storage { get; } = new(path, rwMode);
+      public ZipArchiveStorage Storage { get; } = new(path, rwMode, concurrencyLevel: null, maxDirtyBytes: maxDirtyBytes);
 
       public void Close()
       {
@@ -46,13 +46,13 @@ namespace JetBrains.SymbolStorage.Tests
     
     private static readonly byte[] OurTestData = Enumerable.Range(0, 1024).Select(i => (byte)(i % 256)).ToArray();
     
-    private static StorageHolder CreateEmptyStorage(RwMode rwMode = RwMode.ReadWrite)
+    private static StorageHolder CreateEmptyStorage(RwMode rwMode = RwMode.ReadWrite, long? maxDirtyBytes = null)
     {
       var tempDir = Path.Combine(Path.GetTempPath(), $"zipstorage-{Guid.NewGuid():N}");
       Directory.CreateDirectory(tempDir);
-      return new StorageHolder(Path.Combine(tempDir, "archive.zip"), ConvertRwMode(rwMode));
+      return new StorageHolder(Path.Combine(tempDir, "archive.zip"), ConvertRwMode(rwMode), maxDirtyBytes);
     }
-    private static StorageHolder CreateStorageWithFiles(IEnumerable<string> files, RwMode rwMode = RwMode.ReadWrite)
+    private static StorageHolder CreateStorageWithFiles(IEnumerable<string> files, RwMode rwMode = RwMode.ReadWrite, long? maxDirtyBytes = null)
     {
       var tempDir = Path.Combine(Path.GetTempPath(), $"zipstorage-{Guid.NewGuid():N}");
       Directory.CreateDirectory(tempDir);
@@ -71,7 +71,7 @@ namespace JetBrains.SymbolStorage.Tests
       var archiveFile = Path.Combine(tempDir, "archive.zip");
       ZipFile.CreateFromDirectory(filesDir, archiveFile);
       
-      return new StorageHolder(archiveFile, ConvertRwMode(rwMode));
+      return new StorageHolder(archiveFile, ConvertRwMode(rwMode), maxDirtyBytes);
     }
 
 
@@ -445,6 +445,43 @@ namespace JetBrains.SymbolStorage.Tests
         await storage.Storage.DeleteAsync(recordName);
         await storage.Storage.DeleteAsync(record2Name);
         await storage.Storage.DeleteAsync(recordInOtherDirName);
+      }
+    }
+    
+    [TestMethod]
+    public async Task PutLargeAmountOfFileToStorageTest()
+    {
+      using var storage = CreateEmptyStorage(rwMode: RwMode.ReadWrite, maxDirtyBytes: OurTestData.Length * 3 + 1);
+
+      for (int i = 0; i < 100; i++)
+      {
+        await storage.Storage.CreateForWritingAsync(new SymbolStoragePath($"test/file_{i}.dat"), AccessMode.Public, new MemoryStream(OurTestData, false));
+      }
+
+      for (int i = 0; i < 100; i++)
+      {
+        Assert.IsTrue(await storage.Storage.ExistsAsync(new SymbolStoragePath($"test/file_{i}.dat")));
+        Assert.AreEqual(OurTestData.Length, await storage.Storage.GetLengthAsync(new SymbolStoragePath($"test/file_{i}.dat")));
+      }
+    }
+
+    [TestMethod]
+    public async Task StorageInCreateModeTest()
+    {
+      using var storage = CreateEmptyStorage(RwMode.Create);
+
+      var file1 = new SymbolStoragePath("test/file_1.dat");
+      var file2 = new SymbolStoragePath("test/file_2.dat");
+      
+      await storage.Storage.CreateForWritingAsync(file1, AccessMode.Public, new MemoryStream(OurTestData, false));
+      await storage.Storage.CreateForWritingAsync(file2, AccessMode.Public, new MemoryStream(OurTestData, false));
+      
+      storage.Close();
+      
+      using (var storageForRead = new ZipArchiveStorage(storage.ArchivePath, StorageRwMode.Read))
+      {
+        Assert.IsTrue(await storageForRead.ExistsAsync(file1));
+        Assert.IsTrue(await storageForRead.ExistsAsync(file2));
       }
     }
   }
