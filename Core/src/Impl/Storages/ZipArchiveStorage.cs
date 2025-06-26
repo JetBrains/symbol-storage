@@ -24,7 +24,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
       myProvider = mode switch
       {
-        ZipArchiveStorageRwMode.Read => new ExclusiveZipArchiveProvider(archivePath, maxDirtyBytes: long.MaxValue),
+        ZipArchiveStorageRwMode.Read => new PooledZipArchiveProvider(archivePath, concurrencyLevel: concurrencyLevel ?? 8),
         ZipArchiveStorageRwMode.Create => new ExclusiveZipArchiveProvider(archivePath, mode, maxDirtyBytes: long.MaxValue),
         ZipArchiveStorageRwMode.ReadWrite => new ExclusiveZipArchiveProvider(archivePath, mode, maxDirtyBytes: maxDirtyBytes ?? long.MaxValue),
         ZipArchiveStorageRwMode.ReadWithAutoWritePromotion => new ExclusiveZipArchiveProvider(archivePath, mode, maxDirtyBytes: maxDirtyBytes ?? long.MaxValue),
