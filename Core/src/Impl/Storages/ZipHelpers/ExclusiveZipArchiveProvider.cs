@@ -8,25 +8,36 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
   internal class ExclusiveZipArchiveProvider : ZipArchiveProvider
   {
     private readonly SemaphoreSlim myLock;
-    private readonly ZipArchive myArchive;
+    private readonly ZipArchiveContainer myArchive;
+    private readonly ZipArchiveMode myArchiveMode;
+    private readonly long myMaxDirtyBytes;
 
-    public ExclusiveZipArchiveProvider(string archivePath, ZipArchiveMode mode = ZipArchiveMode.Update)
+    public ExclusiveZipArchiveProvider(string archivePath, ZipArchiveMode mode = ZipArchiveMode.Update, long maxDirtyBytes = long.MaxValue)
     {
       ArchivePath = archivePath;
       myLock = new SemaphoreSlim(1, 1);
-      myArchive = ZipFile.Open(archivePath, mode);
+      myArchive = ZipArchiveContainer.Open(archivePath, mode);
+      myArchiveMode = mode;
+      myMaxDirtyBytes = maxDirtyBytes;
+      Mode = mode;
     }
     
     public string ArchivePath { get; }
-    
+    public override ZipArchiveMode Mode { get; }
+
     public override async Task<ZipArchiveGuard> RentAsync()
     {
       await myLock.WaitAsync();
       return new ZipArchiveGuard(myArchive, this);
     }
 
-    internal override void Release(ZipArchive archive)
+    internal override void Release(ZipArchiveContainer archive)
     {
+      if (myArchiveMode == ZipArchiveMode.Update && archive.DirtyBytes > myMaxDirtyBytes)
+      {
+        archive.Reopen();
+      }
+      
       myLock.Release();
     }
 

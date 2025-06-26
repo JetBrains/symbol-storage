@@ -2,12 +2,19 @@
 
 namespace JetBrains.SymbolStorage.Impl.Storages
 {
-  [Flags]
   internal enum StorageRwMode
   {
-    None = 0,
-    Read = 1,
-    Write = 2,
-    ReadWrite = Read | Write
+    /// <summary>
+    /// Read-only access
+    /// </summary>
+    Read,
+    /// <summary>
+    /// Only creating new items is allowed
+    /// </summary>
+    Create,
+    /// <summary>
+    /// Full access
+    /// </summary>
+    ReadWrite
   }
 }

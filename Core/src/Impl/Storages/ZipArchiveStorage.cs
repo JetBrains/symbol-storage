@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using JetBrains.SymbolStorage.Impl.Storages.ZipHelpers;
@@ -11,10 +12,17 @@ namespace JetBrains.SymbolStorage.Impl.Storages
   {
     private readonly ZipArchiveProvider myProvider;
     
-    public ZipArchiveStorage(string archivePath, StorageRwMode mode, int? cocurrencyLevel = null)
+    public ZipArchiveStorage(string archivePath, StorageRwMode mode, int? concurrencyLevel = null, long? maxDirtyBytes = null)
     {
       RwMode = mode;
-      myProvider = new ExclusiveZipArchiveProvider(archivePath);
+
+      myProvider = mode switch
+      {
+        StorageRwMode.Read => new ExclusiveZipArchiveProvider(archivePath, mode: ZipArchiveMode.Read, maxDirtyBytes: long.MaxValue),
+        StorageRwMode.Create => new ExclusiveZipArchiveProvider(archivePath, mode: ZipArchiveMode.Create, maxDirtyBytes: long.MaxValue),
+        StorageRwMode.ReadWrite => new ExclusiveZipArchiveProvider(archivePath, mode: ZipArchiveMode.Update, maxDirtyBytes: maxDirtyBytes ?? long.MaxValue),
+        _ => throw new ArgumentException("Unknown RW Mode: " + mode.ToString())
+      };
     }
     
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -29,8 +37,9 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     }
     
     public StorageRwMode RwMode { get; }
-    private bool CanRead => (RwMode & StorageRwMode.Read) != 0;
-    private bool CanWrite => (RwMode & StorageRwMode.Write) != 0;
+    private bool CanRead => RwMode == StorageRwMode.Read || RwMode == StorageRwMode.ReadWrite;
+    private bool CanCreate => RwMode == StorageRwMode.Create || RwMode == StorageRwMode.ReadWrite;
+    private bool CanWrite => RwMode == StorageRwMode.ReadWrite;
     
     public async Task<bool> ExistsAsync(SymbolStoragePath file)
     {
@@ -70,11 +79,10 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           throw new KeyNotFoundException($"Specified file ({srcFile}) was not found in zip storage");
 
         var targetEntry = archive.Archive.CreateEntry(SymbolPathToZipPath(dstFile));
-        
+
         await using (var srcStream = srcEntry.Open())
-        await using (var dstStream = targetEntry.Open())
         {
-          await srcStream.CopyToAsync(dstStream);
+          await archive.WriteToArchiveAsync(targetEntry, srcStream);
         }
         
         srcEntry.Delete();
@@ -92,20 +100,26 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         var entry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
         if (entry == null)
           throw new KeyNotFoundException($"Specified file ({file}) was not found in zip storage");
-        
-        return entry.Length;
+
+        return archive.GetEntryLength(entry);
       }
     }
 
     public bool SupportAccessMode => false;
     
-    public Task<AccessMode> GetAccessModeAsync(SymbolStoragePath file)
+    public async Task<AccessMode> GetAccessModeAsync(SymbolStoragePath file)
     {
-      return Task.FromResult(AccessMode.Unknown);
+      if (!CanRead)
+        throw new InvalidOperationException("ZipFileStorage created without Read access");
+      
+      return await ValueTask.FromResult(AccessMode.Unknown);
     }
-    public Task SetAccessModeAsync(SymbolStoragePath file, AccessMode mode)
+    public async Task SetAccessModeAsync(SymbolStoragePath file, AccessMode mode)
     {
-      return Task.CompletedTask;
+      if (!CanWrite)
+        throw new InvalidOperationException("ZipFileStorage created without Write access");
+      
+      await Task.CompletedTask;
     }
 
     public async Task<TResult> OpenForReadingAsync<TResult>(SymbolStoragePath file, Func<Stream, Task<TResult>> func)
@@ -135,21 +149,20 @@ namespace JetBrains.SymbolStorage.Impl.Storages
 
     public async Task CreateForWritingAsync(SymbolStoragePath file, AccessMode mode, Stream stream)
     {
-      if (!CanWrite)
-        throw new InvalidOperationException("ZipFileStorage created without Write access");
+      if (!CanCreate)
+        throw new InvalidOperationException("ZipFileStorage created without Write or Create access");
 
       await Task.Yield();
       using (var archive = await myProvider.RentAsync())
       {
-        var existedEntry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
-        existedEntry?.Delete();
-        
-        var entry = archive.Archive.CreateEntry(SymbolPathToZipPath(file));
-        await using (var destStream = entry.Open())
+        if (CanWrite)
         {
-          await stream.CopyToAsync(destStream);
-          destStream.Close();
+          var existedEntry = archive.Archive.GetEntry(SymbolPathToZipPath(file));
+          existedEntry?.Delete();
         }
+
+        var entry = archive.Archive.CreateEntry(SymbolPathToZipPath(file));
+        await archive.WriteToArchiveAsync(entry, stream);
       }
     }
 
@@ -182,7 +195,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
           
           yield return new ChildrenItem(
             ZipPathToSymbolPath(zipArchiveEntry.FullName),
-            mode == ChildrenMode.WithSize ? zipArchiveEntry.Length : null
+            mode == ChildrenMode.WithSize ? archive.GetEntryLength(zipArchiveEntry) : null
           );
         }
       }
