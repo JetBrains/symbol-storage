@@ -16,18 +16,20 @@ namespace JetBrains.SymbolStorage.Tests
     {
       Read,
       Create,
-      ReadWrite
+      ReadWrite,
+      ReadWithAutoWritePromotion
     }
 
-    private static StorageRwMode ConvertRwMode(RwMode mode) => mode switch
+    private static ZipArchiveStorageRwMode ConvertRwMode(RwMode mode) => mode switch
     {
-      RwMode.Read => StorageRwMode.Read,
-      RwMode.Create => StorageRwMode.Create,
-      RwMode.ReadWrite => StorageRwMode.ReadWrite,
+      RwMode.Read => ZipArchiveStorageRwMode.Read,
+      RwMode.Create => ZipArchiveStorageRwMode.Create,
+      RwMode.ReadWrite => ZipArchiveStorageRwMode.ReadWrite,
+      RwMode.ReadWithAutoWritePromotion => ZipArchiveStorageRwMode.ReadWithAutoWritePromotion,
       _ => throw new ArgumentException("unknown rw mode")
     };
     
-    private readonly struct StorageHolder(string path, StorageRwMode rwMode, long? maxDirtyBytes) : IDisposable
+    private readonly struct StorageHolder(string path, ZipArchiveStorageRwMode rwMode, long? maxDirtyBytes) : IDisposable
     {
       public string ArchivePath { get; } = path;
       public ZipArchiveStorage Storage { get; } = new(path, rwMode, concurrencyLevel: null, maxDirtyBytes: maxDirtyBytes);
@@ -79,6 +81,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataTestMethod]
     [DataRow(RwMode.Read)]
     [DataRow(RwMode.ReadWrite)]
+    [DataRow(RwMode.ReadWithAutoWritePromotion)]
     public async Task ExistsInPreallocatedStorageTest(RwMode rwMode)
     {
       using var storage = CreateStorageWithFiles([Path.Combine("abc", "bcd.bin"), Path.Combine("efk.bin")], rwMode);
@@ -94,6 +97,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataTestMethod]
     [DataRow(RwMode.Read)]
     [DataRow(RwMode.ReadWrite)]
+    [DataRow(RwMode.ReadWithAutoWritePromotion)]
     public async Task GetDataLengthFromPreallocatedStorageTest(RwMode rwMode)
     {
       using var storage = CreateStorageWithFiles([Path.Combine("abc", "bcd.bin")], rwMode);
@@ -143,6 +147,7 @@ namespace JetBrains.SymbolStorage.Tests
     [DataTestMethod]
     [DataRow(RwMode.Read)]
     [DataRow(RwMode.ReadWrite)]
+    [DataRow(RwMode.ReadWithAutoWritePromotion)]
     public async Task ReadFromPreallocatedStorageTest(RwMode rwMode)
     {
       using var storage = CreateStorageWithFiles([Path.Combine("abc", "bcd.bin")], rwMode);
@@ -163,6 +168,7 @@ namespace JetBrains.SymbolStorage.Tests
     [TestMethod]
     [DataRow(RwMode.Read)]
     [DataRow(RwMode.ReadWrite)]
+    [DataRow(RwMode.ReadWithAutoWritePromotion)]
     public async Task GetChildrenFromPreallocatedStorageTest(RwMode rwMode)
     {
       using var storage = CreateStorageWithFiles([
@@ -201,6 +207,29 @@ namespace JetBrains.SymbolStorage.Tests
       Assert.AreEqual(3, fullCount);
     }
 
+    [TestMethod]
+    public async Task ReadWithAutoPromotionToWriteFromPreallocatedStorageTest()
+    {
+      using var storage = CreateStorageWithFiles([Path.Combine("abc", "bcd.bin")], RwMode.ReadWithAutoWritePromotion);
+      var recordName = SymbolStoragePath.Combine("abc", "bcd.bin");
+      var recordNameNew = SymbolStoragePath.Combine("abc", "www.dat");
+
+      using var memoryStream = new MemoryStream();
+      await storage.Storage.OpenForReadingAsync(recordName, async stream => await stream.CopyToAsync(memoryStream));
+      
+      Assert.IsTrue(OurTestData.SequenceEqual(memoryStream.ToArray()));
+
+      await storage.Storage.CreateForWritingAsync(recordNameNew, AccessMode.Public, new MemoryStream(OurTestData));
+      Assert.IsTrue(await storage.Storage.ExistsAsync(recordNameNew));
+      
+      storage.Close();
+      
+      using (var storageForRead = new ZipArchiveStorage(storage.ArchivePath, ZipArchiveStorageRwMode.Read))
+      {
+        Assert.IsTrue(await storageForRead.ExistsAsync(recordName));
+        Assert.IsTrue(await storageForRead.ExistsAsync(recordNameNew));
+      }
+    }
 
     [TestMethod]
     public async Task PutDataToStorageTest()
@@ -241,7 +270,7 @@ namespace JetBrains.SymbolStorage.Tests
       await storage.Storage.CreateForWritingAsync(recordName, AccessMode.Public, new MemoryStream(OurTestData, false));
       storage.Close();
 
-      using (var storageForRead = new ZipArchiveStorage(storage.ArchivePath, StorageRwMode.Read))
+      using (var storageForRead = new ZipArchiveStorage(storage.ArchivePath, ZipArchiveStorageRwMode.Read))
       {
         var memoryStream = new MemoryStream();
         await storageForRead.OpenForReadingAsync(recordName, async stream => { await stream.CopyToAsync(memoryStream); });
@@ -478,7 +507,7 @@ namespace JetBrains.SymbolStorage.Tests
       
       storage.Close();
       
-      using (var storageForRead = new ZipArchiveStorage(storage.ArchivePath, StorageRwMode.Read))
+      using (var storageForRead = new ZipArchiveStorage(storage.ArchivePath, ZipArchiveStorageRwMode.Read))
       {
         Assert.IsTrue(await storageForRead.ExistsAsync(file1));
         Assert.IsTrue(await storageForRead.ExistsAsync(file2));
