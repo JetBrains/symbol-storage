@@ -41,6 +41,11 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
       long initialPosition = data.Position;
       await using (var targetStream = entry.Open())
       {
+        // In update mode ZipArchive stores all data in memory, thus it would be good to preset the stream length
+        // to avoid buffer extension during CopyToAsync
+        if (CurrentArchiveMode == ZipArchiveMode.Update && data.CanSeek && targetStream.CanSeek && targetStream.CanWrite)
+          targetStream.SetLength(data.Length);
+        
         await data.CopyToAsync(targetStream);
       }
       
