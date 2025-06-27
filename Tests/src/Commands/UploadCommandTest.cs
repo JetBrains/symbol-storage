@@ -51,9 +51,10 @@ namespace JetBrains.SymbolStorage.Tests.Commands
           }
         }
 
+        using (var sourceStorage = new FileSystemStorage(sourceStorageDir))
         using (var targetStorage = new FileSystemStorage(targetStorageDir))
         {
-          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorageDir, StorageFormat.Normal, 
+          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage, StorageFormat.Normal, 
             CollisionResolutionMode.Terminate, CollisionResolutionMode.Terminate, null);
 
           var commandResult = await command.ExecuteAsync();
@@ -118,9 +119,10 @@ namespace JetBrains.SymbolStorage.Tests.Commands
           changedPeFile = file;
         }
         
+        using (var sourceStorage = new FileSystemStorage(sourceStorage1Dir))
         using (var targetStorage = new FileSystemStorage(destStorageDir))
         {
-          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage1Dir, StorageFormat.Normal, 
+          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage, StorageFormat.Normal, 
             collisionResolutionMode: CollisionResolutionMode.Terminate, peCollisionResolutionMode: CollisionResolutionMode.Terminate,  backupStorageDir: null);
 
           var commandResult = await command.ExecuteAsync();
@@ -132,9 +134,10 @@ namespace JetBrains.SymbolStorage.Tests.Commands
         
         
         // Test CollisionResolutionMode.Terminate
+        using (var sourceStorage = new FileSystemStorage(sourceStorage2Dir))
         using (var targetStorage = new FileSystemStorage(destStorageDir))
         {
-          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage2Dir, StorageFormat.Normal, 
+          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage, StorageFormat.Normal, 
             collisionResolutionMode: CollisionResolutionMode.Terminate, peCollisionResolutionMode: CollisionResolutionMode.Terminate,  backupStorageDir: null);
 
           var commandResult = await command.ExecuteAsync();
@@ -145,9 +148,10 @@ namespace JetBrains.SymbolStorage.Tests.Commands
         }
         
         // Test CollisionResolutionMode.KeepExisted mode
+        using (var sourceStorage = new FileSystemStorage(sourceStorage2Dir))
         using (var targetStorage = new FileSystemStorage(destStorageDir))
         {
-          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage2Dir, StorageFormat.Normal, 
+          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage, StorageFormat.Normal, 
             collisionResolutionMode: CollisionResolutionMode.Terminate, peCollisionResolutionMode: CollisionResolutionMode.KeepExisted,  backupStorageDir: null);
 
           var commandResult = await command.ExecuteAsync();
@@ -158,9 +162,10 @@ namespace JetBrains.SymbolStorage.Tests.Commands
         }
         
         // Test CollisionResolutionMode.Overwrite mode
+        using (var sourceStorage = new FileSystemStorage(sourceStorage2Dir))
         using (var targetStorage = new FileSystemStorage(destStorageDir))
         {
-          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage2Dir, StorageFormat.Normal, 
+          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage, StorageFormat.Normal, 
             collisionResolutionMode: CollisionResolutionMode.Terminate, peCollisionResolutionMode: CollisionResolutionMode.Overwrite,  backupStorageDir: backupStorageDir);
 
           var commandResult = await command.ExecuteAsync();
@@ -179,9 +184,10 @@ namespace JetBrains.SymbolStorage.Tests.Commands
         
         // Recreate storage
         Directory.Delete(destStorageDir, true);
+        using (var sourceStorage = new FileSystemStorage(sourceStorage1Dir))
         using (var targetStorage = new FileSystemStorage(destStorageDir))
         {
-          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage1Dir, StorageFormat.Normal, 
+          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage, StorageFormat.Normal, 
             collisionResolutionMode: CollisionResolutionMode.Terminate, peCollisionResolutionMode: CollisionResolutionMode.Terminate,  backupStorageDir: null);
 
           var commandResult = await command.ExecuteAsync();
@@ -193,9 +199,10 @@ namespace JetBrains.SymbolStorage.Tests.Commands
         
                 
         // Test CollisionResolutionMode.OverwriteWithoutBackup mode
+        using (var sourceStorage = new FileSystemStorage(sourceStorage2Dir))
         using (var targetStorage = new FileSystemStorage(destStorageDir))
         {
-          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage2Dir, StorageFormat.Normal, 
+          var command = new UploadCommand(new DummyLogger(), targetStorage, Environment.ProcessorCount, sourceStorage, StorageFormat.Normal, 
             collisionResolutionMode: CollisionResolutionMode.Terminate, peCollisionResolutionMode: CollisionResolutionMode.OverwriteWithoutBackup,  backupStorageDir: null);
 
           var commandResult = await command.ExecuteAsync();

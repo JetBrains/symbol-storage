@@ -14,9 +14,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
   internal sealed class UploadCommand : IStatsReportingCommand
   {
     private readonly ILogger myLogger;
-    private readonly string mySource;
+    private readonly IStorage mySourceStorage;
     private readonly StorageFormat myNewStorageFormat;
-    private readonly IStorage myStorage;
+    private readonly IStorage myTargetStorage;
     private readonly CollisionResolutionMode myCollisionResolutionMode;
     private readonly CollisionResolutionMode myPeCollisionResolutionMode;
     private readonly string? myBackupStorageDir;
@@ -25,9 +25,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
 
     public UploadCommand(
       ILogger logger,
-      IStorage storage,
+      IStorage targetStorage,
       int degreeOfParallelism,
-      string source,
+      IStorage sourceStorage,
       StorageFormat newStorageFormat,
       CollisionResolutionMode collisionResolutionMode,
       CollisionResolutionMode peCollisionResolutionMode,
@@ -37,9 +37,9 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         throw new ArgumentException("Backup storage must be specified when collision resolution mode is 'overwrite'");
 
       myLogger = logger ?? throw new ArgumentNullException(nameof(logger));
-      myStorage = storage ?? throw new ArgumentNullException(nameof(storage));
+      myTargetStorage = targetStorage ?? throw new ArgumentNullException(nameof(targetStorage));
       myDegreeOfParallelism = degreeOfParallelism;
-      mySource = source ?? throw new ArgumentNullException(nameof(source));
+      mySourceStorage = sourceStorage ?? throw new ArgumentNullException(nameof(sourceStorage));
       myNewStorageFormat = newStorageFormat;
       myCollisionResolutionMode = collisionResolutionMode;
       myPeCollisionResolutionMode = peCollisionResolutionMode;
@@ -51,10 +51,8 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public async Task<int> ExecuteAsync()
     {
       Volatile.Write(ref mySubOpsCount, 0);
-      
-      using var srcStorage = new FileSystemStorage(mySource);
 
-      var (srcFiles, isValid) = await ValidateAndLoadFilesListFromStorage(srcStorage);
+      var (srcFiles, isValid) = await ValidateAndLoadFilesListFromStorage(mySourceStorage);
       Volatile.Write(ref mySubOpsCount, srcFiles.Count);
       if (!isValid)
       {
@@ -62,14 +60,14 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         return 1;
       }
 
-      (var uploadFiles, isValid) = await BuildFilesListForUploading(srcStorage, srcFiles);
+      (var uploadFiles, isValid) = await BuildFilesListForUploading(mySourceStorage, srcFiles);
       if (!isValid)
       {
         myLogger.Error("Found some issues in source storage, uploading was interrupted");
         return 1;
       }
 
-      await UploadFiles(srcStorage, uploadFiles);
+      await UploadFiles(mySourceStorage, uploadFiles);
       return 0;
     }
 
@@ -105,7 +103,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     /// <returns>List of files to upload + validation result</returns>
     private async Task<(List<(SymbolStoragePath src, SymbolStoragePath dst)> srcDstPairs, bool valid)> BuildFilesListForUploading(IStorage srcStorage, List<SymbolStoragePath> srcFiles)
     {
-      var dstValidator = new StorageManager(myLogger, myStorage, "Destination");
+      var dstValidator = new StorageManager(myLogger, myTargetStorage, "Destination");
       var dstStorageFormat = await dstValidator.CreateOrValidateStorageMarkersAsync(myNewStorageFormat);
 
       myLogger.Info($"[{DateTime.Now:s}] Checking file compatibility...");
@@ -140,15 +138,15 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           }
         }
 
-        if (await myStorage.ExistsAsync(dstFile))
+        if (await myTargetStorage.ExistsAsync(dstFile))
         {
           bool isSameFile = false;
-          var dstLen = await myStorage.GetLengthAsync(dstFile);
+          var dstLen = await myTargetStorage.GetLengthAsync(dstFile);
           var srcLen = await srcStorage.GetLengthAsync(srcFile);
           if (dstLen == srcLen)
           {
             using var hash = SHA256.Create();
-            var dstHash = await myStorage.OpenForReadingAsync(dstFile, stream => hash.ComputeHashAsync(stream));
+            var dstHash = await myTargetStorage.OpenForReadingAsync(dstFile, stream => hash.ComputeHashAsync(stream));
             var srcHash = await srcStorage.OpenForReadingAsync(srcFile, stream => hash.ComputeHashAsync(stream));
             if (srcHash.SequenceEqual(dstHash))
             {
@@ -161,7 +159,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
           {
             // Collision resolution logic
             Interlocked.Increment(ref collisionFiles);
-            if (await ProcessFileCollision(logger, myStorage, backupStorage, srcFile, dstFile))
+            if (await ProcessFileCollision(logger, myTargetStorage, backupStorage, srcFile, dstFile))
             {
               lock (uploadFilesSync)
               {
@@ -232,11 +230,11 @@ namespace JetBrains.SymbolStorage.Impl.Commands
         myLogger.Info($"  Uploading {srcFile}");
         using var memoryStream = new MemoryStream();
         await srcStorage.OpenForReadingAsync(srcFile, stream => stream.CopyToAsync(memoryStream));
-        await myStorage.CreateForWritingAsync(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream);
+        await myTargetStorage.CreateForWritingAsync(dstFile, TagUtil.IsTagFile(dstFile) ? AccessMode.Private : AccessMode.Public, memoryStream);
         Interlocked.Add(ref totalSize, memoryStream.Length);
       });
 
-      await myStorage.InvalidateExternalServicesAsync();
+      await myTargetStorage.InvalidateExternalServicesAsync();
       myLogger.Info($"[{DateTime.Now:s}] Done with uploading (size: {totalSize.ToKibibyte()}, files: {uploadFiles.Count})");
     }
   }

@@ -60,6 +60,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
       return new SymbolStoragePath(key);
     }
 
+    public StorageRwMode RwMode => StorageRwMode.ReadWrite;
+    
     public async Task<bool> ExistsAsync(SymbolStoragePath file)
     {
       var key = SymbolPathToAwsKey(file);
