@@ -1,5 +1,7 @@
 ﻿using System;
+using System.IO;
 using Amazon;
+using DotNext;
 using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
@@ -29,6 +31,15 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public const string CollisionResolutionOverwrite = "overwrite";
     public const string CollisionResolutionOverwriteWithoutBackup = "overwritewithoutbackup";
     
+    private const long MaxZipStorageDirtyBytes = 64 * 1024 * 1024;
+    
+    public enum StorageAccessMode
+    {
+      Create,
+      Read,
+      ReadWrite
+    }
+    
 
     public static bool? GetProtectedValue(string value) => value switch
       {
@@ -48,12 +59,35 @@ namespace JetBrains.SymbolStorage.Impl.Commands
       Console.WriteLine("Execute {0} tasks in parallel", res);
       return res;
     }
-    
-    public static IStorage GetStorage(string? dir, string? awsS3BucketName, string? awsS3RegionEndpoint)
+
+    public static IStorage GetLocalFileSystemStorage(string? dirOrZipFile, StorageAccessMode accessMode, int? concurrencyLevel)
     {
-      if (!string.IsNullOrEmpty(dir) && string.IsNullOrEmpty(awsS3BucketName))
+      if (string.IsNullOrEmpty(dirOrZipFile))
+        throw new ArgumentException("Directory or zip file should be specified", nameof(dirOrZipFile));
+      
+      var attributes = File.GetAttributes(dirOrZipFile);
+      if ((attributes & FileAttributes.Directory) != 0)
+      {
+        return GetStorage(dir: dirOrZipFile, zip: null, awsS3BucketName: null, awsS3RegionEndpoint: null, accessMode, concurrencyLevel);
+      }
+      else if (Path.GetExtension(dirOrZipFile.AsSpan()).CompareTo(".zip".AsSpan(), StringComparison.OrdinalIgnoreCase) == 0)
+      {
+        return GetStorage(dir: null, zip: dirOrZipFile, awsS3BucketName: null, awsS3RegionEndpoint: null, accessMode, concurrencyLevel);
+      }
+      else
+      {
+        throw new ArgumentException("Specified path is not a directory or zip file");
+      }
+    }
+    
+    public static IStorage GetStorage(string? dir, string? zip, string? awsS3BucketName, string? awsS3RegionEndpoint,
+      StorageAccessMode accessMode, int? concurrencyLevel)
+    {
+      if (!string.IsNullOrEmpty(dir) && string.IsNullOrEmpty(zip) && string.IsNullOrEmpty(awsS3BucketName))
         return GetFileSystemStorage(dir);
-      if (string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(awsS3BucketName))
+      if (string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(zip) && string.IsNullOrEmpty(awsS3BucketName))
+        return GetZipArchiveStorage(zip, accessMode, concurrencyLevel);
+      if (string.IsNullOrEmpty(dir) && string.IsNullOrEmpty(zip) && !string.IsNullOrEmpty(awsS3BucketName))
         return GetAwsS3Storage(awsS3BucketName, awsS3RegionEndpoint ?? DefaultAwsS3RegionEndpoint);
       throw new Exception("The storage location option should be defined");
     }
@@ -61,6 +95,19 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     private static IStorage GetFileSystemStorage(string dir)
     {
       return new FileSystemStorage(dir);
+    }
+
+    private static IStorage GetZipArchiveStorage(string zipFilePath, StorageAccessMode accessMode, int? concurrencyLevel)
+    {
+      var zipMode = accessMode switch
+      {
+        StorageAccessMode.Create => ZipArchiveStorageRwMode.Create,
+        StorageAccessMode.Read => ZipArchiveStorageRwMode.Read,
+        StorageAccessMode.ReadWrite => ZipArchiveStorageRwMode.ReadWithAutoWritePromotion,
+        _ => throw new ArgumentException("Unknown storage access mode: " + accessMode.ToString())
+      };
+      
+      return new ZipArchiveStorage(zipFilePath, zipMode, concurrencyLevel, maxDirtyBytes: MaxZipStorageDirtyBytes);
     }
     
     private static IStorage GetAwsS3Storage(string awsS3BucketName, string awsS3RegionEndpoint)
