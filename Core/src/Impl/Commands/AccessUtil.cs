@@ -31,7 +31,7 @@ namespace JetBrains.SymbolStorage.Impl.Commands
     public const string CollisionResolutionOverwrite = "overwrite";
     public const string CollisionResolutionOverwriteWithoutBackup = "overwritewithoutbackup";
     
-    private const long MaxZipStorageDirtyBytes = 128L * 1024 * 1024;
+    private const long MaxZipStorageDirtyBytes = 256L * 1024 * 1024;
     
     public enum StorageAccessMode
     {
