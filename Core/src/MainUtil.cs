@@ -186,8 +186,8 @@ namespace JetBrains.SymbolStorage
             {
               var logger = new ConsoleLogger(verboseOption.HasValue());
               int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
-              var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
-                AccessUtil.StorageAccessMode.Create, degreeOfParallelism);
+              using var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                AccessUtil.StorageAccessMode.ReadWrite, degreeOfParallelism);
               
               return await new NewCommand(
                 logger,
