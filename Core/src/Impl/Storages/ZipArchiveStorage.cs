@@ -160,6 +160,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages
         throw new InvalidOperationException("ZipFileStorage created without Write or Create access");
 
       await Task.Yield();
+      stream.Seek(0, SeekOrigin.Begin);
       using (var archive = await myProvider.RentAsync(writable: true))
       {
         if (CanWrite)
