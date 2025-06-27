@@ -49,6 +49,7 @@ namespace JetBrains.SymbolStorage
         commandLine.VersionOption("--version", () => toolVersion);
 
         var dirOption = commandLine.Option("-d|--directory", "The local directory with symbol server storage.", CommandOptionType.SingleValue);
+        var zipOption = commandLine.Option("--zip", "Zip file with symbol server storage.", CommandOptionType.SingleValue);
         var awsS3BucketNameOption = commandLine.Option("-a|--aws-s3", $"The AWS S3 bucket with symbol server storage. The access and private keys will be asked in console. Use {AccessUtil.AwsS3AccessKeyEnvironmentVariable}, {AccessUtil.AwsS3SecretKeyEnvironmentVariable}, {AccessUtil.AwsS3SessionTokenEnvironmentVariable} (optional, '_' = no value) and {AccessUtil.AwsCloudFrontDistributionIdEnvironmentVariable} (optional, '_' = no value) environment variables for unattended mode.", CommandOptionType.SingleValue);
         var awsS3RegionEndpointOption = commandLine.Option("-ar|--aws-s3-region", $"The AWS S3 region endpoint with symbol server storage. Default is {AccessUtil.DefaultAwsS3RegionEndpoint}.", CommandOptionType.SingleValue);
         var degreeOfParallelismOption = commandLine.Option("-t|--tasks", $"Execute task count in parallel. Default is the processor count ({AccessUtil.DefaultDegreeOfParallelism} for now).", CommandOptionType.SingleValue);
@@ -75,12 +76,21 @@ namespace JetBrains.SymbolStorage
               x.Description = "Storage inconsistency check and fix known issues by request";
               var aclOption = x.Option("-r|--rights", "Validate access rights.", CommandOptionType.NoValue);
               var fixOption = x.Option("-f|--fix", "Fix known issues if possible.", CommandOptionType.NoValue);
-              x.OnExecute(() => new ValidateCommand(
-                new ConsoleLogger(verboseOption.HasValue()),
-                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-                AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-                aclOption.HasValue(),
-                fixOption.HasValue()).WithTimeReportingToConsole().ExecuteAsync());
+              x.OnExecute(async () =>
+              {
+                var logger = new ConsoleLogger(verboseOption.HasValue());
+                int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+                using var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                  accessMode: fixOption.HasValue() ? AccessUtil.StorageAccessMode.ReadWrite : AccessUtil.StorageAccessMode.Read,
+                  concurrencyLevel: degreeOfParallelism);
+                
+                return await new ValidateCommand(
+                  logger,
+                  storage,
+                  degreeOfParallelism,
+                  aclOption.HasValue(),
+                  fixOption.HasValue()).WithTimeReporting(logger).ExecuteAsync();
+              });
             });
 
           static void SafetyPeriodOptions(
@@ -107,18 +117,26 @@ namespace JetBrains.SymbolStorage
               SafetyPeriodOptions(x, null, out var safetyPeriodOption);
               var filterProtectedOption = x.Option("-fr|--protected-filter", $"Filter by protected value: {AccessUtil.ProtectedAll}, {AccessUtil.ProtectedOn} and {AccessUtil.ProtectedOff}. The default is {AccessUtil.ProtectedAll}.", CommandOptionType.SingleValue);
               var printFileSizesOption = x.Option("-sz|--file-sizes", "Print file sizes", CommandOptionType.NoValue);
-              x.OnExecute(() => new ListCommand(
-                new ConsoleLogger(verboseOption.HasValue()),
-                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-                AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-                new IdentityFilter(
-                  incFilterProductOption.Values,
-                  excFilterProductOption.Values,
-                  incFilterVersionOption.Values,
-                  excFilterVersionOption.Values),
-                ParseDays(safetyPeriodOption.Value(), defaultDays: null),
-                ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedAll),
-                printFileSizesOption.HasValue()).WithTimeReportingToConsole().ExecuteAsync());
+              x.OnExecute(async () =>
+              {
+                var logger = new ConsoleLogger(verboseOption.HasValue());
+                int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+                using var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                  AccessUtil.StorageAccessMode.Read, degreeOfParallelism);
+                
+                return await new ListCommand(
+                  logger,
+                  storage,
+                  degreeOfParallelism,
+                  new IdentityFilter(
+                    incFilterProductOption.Values,
+                    excFilterProductOption.Values,
+                    incFilterVersionOption.Values,
+                    excFilterVersionOption.Values),
+                  ParseDays(safetyPeriodOption.Value(), defaultDays: null),
+                  ParseProtected(filterProtectedOption.Value(), AccessUtil.ProtectedAll),
+                  printFileSizesOption.HasValue()).WithTimeReporting(logger).ExecuteAsync();
+              });
             });
 
           commandLine.Command("delete", x =>
@@ -131,16 +149,24 @@ namespace JetBrains.SymbolStorage
                 out var incFilterVersionOption,
                 out var excFilterVersionOption);
               SafetyPeriodOptions(x, AccessUtil.DefaultSafetyPeriod, out var safetyPeriodOption);
-              x.OnExecute(() => new DeleteCommand(
-                new ConsoleLogger(verboseOption.HasValue()),
-                AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-                AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-                new IdentityFilter(
-                  incFilterProductOption.Values,
-                  excFilterProductOption.Values,
-                  incFilterVersionOption.Values,
-                  excFilterVersionOption.Values),
-                ParseDays(safetyPeriodOption.Value(), defaultDays: AccessUtil.DefaultSafetyPeriod).Value).WithTimeReportingToConsole().ExecuteAsync());
+              x.OnExecute(async () =>
+              {
+                var logger = new ConsoleLogger(verboseOption.HasValue());
+                int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+                using var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                  AccessUtil.StorageAccessMode.ReadWrite, degreeOfParallelism);
+                
+                return await new DeleteCommand(
+                  logger,
+                  storage,
+                  degreeOfParallelism,
+                  new IdentityFilter(
+                    incFilterProductOption.Values,
+                    excFilterProductOption.Values,
+                    incFilterVersionOption.Values,
+                    excFilterVersionOption.Values),
+                  ParseDays(safetyPeriodOption.Value(), defaultDays: AccessUtil.DefaultSafetyPeriod).Value).WithTimeReporting(logger).ExecuteAsync();
+              });
             });
         }
 
@@ -156,30 +182,47 @@ namespace JetBrains.SymbolStorage
             x.HelpOption("-h|--help");
             x.Description = "Create empty storage";
             StorageOptions(x, out var newStorageFormatOption);
-            x.OnExecute(() => new NewCommand(
-              new ConsoleLogger(verboseOption.HasValue()),
-              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-              AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).WithTimeReportingToConsole().ExecuteAsync());
+            x.OnExecute(async () =>
+            {
+              var logger = new ConsoleLogger(verboseOption.HasValue());
+              int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+              var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                AccessUtil.StorageAccessMode.Create, degreeOfParallelism);
+              
+              return await new NewCommand(
+                logger,
+                storage,
+                AccessUtil.GetStorageFormat(newStorageFormatOption.Value())).WithTimeReporting(logger).ExecuteAsync();
+            });
           });
 
         commandLine.Command("upload", x =>
           {
             x.HelpOption("-h|--help");
-            x.Description = "Upload one storage to another one with the source storage inconsistency check";
-            var sourceOption = x.Option("-s|--source", "Source storage directory.", CommandOptionType.SingleValue);
+            x.Description = "Upload content from the source storage to another one with the source storage inconsistency check";
+            var sourceOption = x.Option("-s|--source", "Source storage directory or zip file.", CommandOptionType.SingleValue);
             var collisionResolutionMode = x.Option("-crm|--collision-resolution", $"Collision resolution mode: {CollisionResolutionMode.Terminate} (default), {CollisionResolutionMode.KeepExisted}, {CollisionResolutionMode.Overwrite}, {CollisionResolutionMode.OverwriteWithoutBackup}.", CommandOptionType.SingleValue);
             var peCollisionResolutionMode = x.Option("-crmpe|--collision-resolution-pe", $"Collision resolution mode override for PE weak hash: {CollisionResolutionMode.Terminate}, {CollisionResolutionMode.KeepExisted}, {CollisionResolutionMode.Overwrite}, {CollisionResolutionMode.OverwriteWithoutBackup}.", CommandOptionType.SingleValue);
             var backupStorage = x.Option("-bckp|--backup-directory", "Directory to store backup in case of collisions", CommandOptionType.SingleValue);
             StorageOptions(x, out var newStorageFormatOption);
-            x.OnExecute(() => new UploadCommand(
-              new ConsoleLogger(verboseOption.HasValue()),
-              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-              AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-              sourceOption.Value(),
-              AccessUtil.GetStorageFormat(newStorageFormatOption.Value()),
-              collisionResolutionMode: AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value()),
-              peCollisionResolutionMode: AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value())),
-              backupStorageDir: backupStorage.Value()).WithTimeReportingToConsole().ExecuteAsync());
+            x.OnExecute(async () =>
+            {
+              var logger = new ConsoleLogger(verboseOption.HasValue());
+              int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+              using var sourceStorage = AccessUtil.GetLocalFileSystemStorage(sourceOption.Value(), AccessUtil.StorageAccessMode.Read, degreeOfParallelism);
+              using var targetStorage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                AccessUtil.StorageAccessMode.ReadWrite, degreeOfParallelism);
+              
+              return await new UploadCommand(
+                logger,
+                targetStorage,
+                degreeOfParallelism,
+                sourceStorage,
+                AccessUtil.GetStorageFormat(newStorageFormatOption.Value()),
+                collisionResolutionMode: AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value()),
+                peCollisionResolutionMode: AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value())),
+                backupStorageDir: backupStorage.Value()).WithTimeReporting(logger).ExecuteAsync();
+            });
           });
 
         commandLine.Command("create", x =>
@@ -200,13 +243,14 @@ namespace JetBrains.SymbolStorage
             var sourcesOption = x.Argument("path [path [...]] or @file", "Source directories or files with symbols, executables and shared libraries.", true);
             x.OnExecute(async () =>
               {
-                var storage = AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value());
+                var logger = new ConsoleLogger(verboseOption.HasValue());
+                int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+                using var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                  AccessUtil.StorageAccessMode.ReadWrite, degreeOfParallelism);
                 var newStorageFormat = AccessUtil.GetStorageFormat(newStorageFormatOption.Value());
                 var sources = await ParsePaths(sourcesOption.Values);
                 var properties = propertiesOption.Values.ParseProperties();
                 var tempDir = Path.Combine(Path.GetTempPath(), "storage_" + Guid.NewGuid().ToString("D"));
-                ILogger logger = new ConsoleLogger(verboseOption.HasValue());
-                var degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
                 var parsedCollisionResolutionMode = AccessUtil.GetCollisionResolutionMode(collisionResolutionMode.Value());
                 var parsedPeCollisionResolutionMode = AccessUtil.GetCollisionResolutionMode(peCollisionResolutionMode.Value(), parsedCollisionResolutionMode);
                 if ((parsedCollisionResolutionMode == CollisionResolutionMode.Overwrite || parsedPeCollisionResolutionMode == CollisionResolutionMode.Overwrite) && !backupStorage.HasValue())
@@ -228,7 +272,7 @@ namespace JetBrains.SymbolStorage
                     compressWPdbOption.HasValue(),
                     keepNonCompressedOption.HasValue(),
                     properties,
-                    sources).WithTimeReportingToConsole().ExecuteAsync();
+                    sources).WithTimeReporting(logger).ExecuteAsync();
                   if (res != 0)
                     return res;
 
@@ -236,11 +280,11 @@ namespace JetBrains.SymbolStorage
                     logger,
                     storage,
                     degreeOfParallelism,
-                    tempDir,
+                    new FileSystemStorage(tempDir),
                     newStorageFormat,
                     parsedCollisionResolutionMode,
                     parsedPeCollisionResolutionMode,
-                    backupStorage.Value()).WithTimeReportingToConsole().ExecuteAsync();
+                    backupStorage.Value()).WithTimeReporting(logger).ExecuteAsync();
                 }
                 finally
                 {
@@ -283,16 +327,24 @@ namespace JetBrains.SymbolStorage
               out var incFilterVersionOption,
               out var excFilterVersionOption);
             var clearOption = x.Option("-c|--clear", "Clear protection.", CommandOptionType.NoValue);
-            x.OnExecute(() => new ProtectedCommand(
-              new ConsoleLogger(verboseOption.HasValue()),
-              AccessUtil.GetStorage(dirOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value()),
-              AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value()),
-              new IdentityFilter(
-                incFilterProductOption.Values,
-                excFilterProductOption.Values,
-                incFilterVersionOption.Values,
-                excFilterVersionOption.Values),
-              !clearOption.HasValue()).WithTimeReportingToConsole().ExecuteAsync());
+            x.OnExecute(async () =>
+            {
+              var logger = new ConsoleLogger(verboseOption.HasValue());
+              int degreeOfParallelism = AccessUtil.GetDegreeOfParallelism(degreeOfParallelismOption.Value());
+              using var storage = AccessUtil.GetStorage(dirOption.Value(), zipOption.Value(), awsS3BucketNameOption.Value(), awsS3RegionEndpointOption.Value(),
+                AccessUtil.StorageAccessMode.ReadWrite, degreeOfParallelism);
+              
+              return await new ProtectedCommand(
+                new ConsoleLogger(verboseOption.HasValue()),
+                storage,
+                degreeOfParallelism,
+                new IdentityFilter(
+                  incFilterProductOption.Values,
+                  excFilterProductOption.Values,
+                  incFilterVersionOption.Values,
+                  excFilterVersionOption.Values),
+                !clearOption.HasValue()).WithTimeReporting(logger).ExecuteAsync();
+            });
           });
 
         if (args.Length != 0)
