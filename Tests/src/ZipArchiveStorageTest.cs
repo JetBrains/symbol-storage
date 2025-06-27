@@ -76,8 +76,7 @@ namespace JetBrains.SymbolStorage.Tests
       
       return new StorageHolder(archiveFile, ConvertRwMode(rwMode), maxDirtyBytes, concurrencyLevel);
     }
-
-
+    
 
     [DataTestMethod]
     [DataRow(RwMode.Read)]
@@ -535,6 +534,13 @@ namespace JetBrains.SymbolStorage.Tests
 
         Assert.IsTrue(OurTestData.SequenceEqual(memoryStream.ToArray()));
       });
+    }
+
+    [TestMethod]
+    public async Task ArchiveCreationInAutoWritePromotionModeTest()
+    {
+      using var storage = CreateEmptyStorage(RwMode.ReadWithAutoWritePromotion);
+      Assert.IsTrue(await storage.Storage.IsEmptyAsync());
     }
   }
 }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,12 +9,13 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
 {
   internal class ExclusiveZipArchiveProvider : ZipArchiveProvider
   {
-    private static ZipArchiveMode ZipArchiveStorageRwModeToZipArchiveMode(ZipArchiveStorageRwMode mode) => mode switch
+    private static ZipArchiveMode ZipArchiveStorageRwModeToZipArchiveMode(string archivePath, ZipArchiveStorageRwMode mode) => mode switch
     {
       ZipArchiveStorageRwMode.Create => ZipArchiveMode.Create,
       ZipArchiveStorageRwMode.Read => ZipArchiveMode.Read,
       ZipArchiveStorageRwMode.ReadWrite => ZipArchiveMode.Update,
-      ZipArchiveStorageRwMode.ReadWithAutoWritePromotion => ZipArchiveMode.Read,
+      ZipArchiveStorageRwMode.ReadWithAutoWritePromotion when File.Exists(archivePath) => ZipArchiveMode.Read,
+      ZipArchiveStorageRwMode.ReadWithAutoWritePromotion => ZipArchiveMode.Update,
       _ => throw new ArgumentException($"Unknown ZipArchiveStorageRwMode: {mode}", nameof(mode))
     };
     
@@ -26,7 +28,7 @@ namespace JetBrains.SymbolStorage.Impl.Storages.ZipHelpers
     {
       ArchivePath = archivePath;
       myLock = new SemaphoreSlim(1, 1);
-      myArchive = ZipArchiveContainer.Open(archivePath, ZipArchiveStorageRwModeToZipArchiveMode(mode));
+      myArchive = ZipArchiveContainer.Open(archivePath, ZipArchiveStorageRwModeToZipArchiveMode(archivePath, mode));
       myMaxDirtyBytes = maxDirtyBytes;
       Mode = mode;
       myIsDisposed = false;
