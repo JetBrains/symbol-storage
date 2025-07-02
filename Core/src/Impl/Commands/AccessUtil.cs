@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using Amazon;
-using DotNext;
 using JetBrains.SymbolStorage.Impl.Storages;
 
 namespace JetBrains.SymbolStorage.Impl.Commands
