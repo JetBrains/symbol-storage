@@ -20,7 +20,8 @@ namespace JetBrains.SymbolStorage.Impl.Storages
     /// </summary>
     /// <remarks>
     /// Note(ilia.kopylov): ReaderWriterLock is not the most efficient solution, but it is very simple.
-    /// It can be replaced with a tree-based synchronization solution in the future.
+    /// Performance tests have shown no visible performance degradation due to adding the ReaderWriterLock,
+    /// so this solution should be sufficient.
     /// </remarks>
     private readonly AsyncReaderWriterLock myRwLock;
 
