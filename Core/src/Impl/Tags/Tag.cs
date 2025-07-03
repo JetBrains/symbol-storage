@@ -65,4 +65,10 @@ namespace JetBrains.SymbolStorage.Impl.Tags
       writer.WriteStringValue(guidValue.ToString("D")); 
     }
   }
+
+  [JsonSourceGenerationOptions(WriteIndented = true)]
+  [JsonSerializable(typeof(Tag))]
+  internal partial class TagJsonSerializerContext : JsonSerializerContext
+  {
+  }
 }
