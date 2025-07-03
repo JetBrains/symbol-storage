@@ -9,9 +9,11 @@ $ErrorActionPreference=[System.Management.Automation.ActionPreference]::Stop
 [xml]$_Project=Get-Content Common.targets
 $_Framework=$_Project.Project.PropertyGroup.TargetFramework
 $_PackageVersion=$_Project.Project.PropertyGroup.Version
+$_PublishDir="publish"
 
 Write-Host "Framework:" $_Framework
 Write-Host "PackageVersion:" $_PackageVersion
+Write-Host "Publish directory:" $_PublishDir
 
 function pack($_Name, $_Runtime) {
   $_File='<?xml version="1.0" encoding="utf-8"?>
@@ -28,17 +30,19 @@ function pack($_Name, $_Runtime) {
     <description>JetBrains SymbolStorage ' + $_Name + '</description>
   </metadata>
   <files>
-    <file src="' + $_Name + '\bin\Release\' + $_Framework + '\' + $_Runtime + '\publish\**\*" target="tools\' + $_Runtime + '" />
+    <file src="' + $_Name + '\' + $_Runtime + '\**\*" target="tools\' + $_Runtime + '" />
   </files>
 </package>'
 
-  $_NuSpec="Package.$_Name.$_Runtime.nuspec"
+
+  $_NuSpec="$_PublishDir\Package.$_Name.$_Runtime.nuspec"
   Out-File -InputObject $_File -Encoding utf8 $_NuSpec
-  nuget pack $_NuSpec
+  nuget pack $_NuSpec -OutputDirectory "$_PublishDir\nuget\"
 }
 
 function compileAndPack($_Runtime) {
-  dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishTrimmed=true SymbolStorage.sln
+  dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$_PublishDir\Manager\$_Runtime" Manager
+  dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$_PublishDir\Uploader\$_Runtime" Uploader
   pack Manager $_Runtime
   pack Uploader $_Runtime
 }
