@@ -16,7 +16,6 @@ namespace JetBrains.SymbolStorage.Impl.Tags
     private static readonly SymbolStoragePath TagDirectory = new SymbolStoragePath(TagDirectoryStr);
     private const string TagExtension = ".tag";
     private const string TagDirectoryPathPrefix = TagDirectoryStr + SymbolStoragePath.DirectorySeparatorString;
-    private static readonly JsonSerializerOptions JsonCommonSerializerOptions = new JsonSerializerOptions() { WriteIndented = true, TypeInfoResolver = TagJsonSerializerContext.Default };
 
     public static SymbolStoragePath MakeTagFile(Identity identity, Guid fileId)
     {
@@ -33,7 +32,7 @@ namespace JetBrains.SymbolStorage.Impl.Tags
 
     public static async Task WriteTagScriptAsync(Tag tag, Stream stream)
     {
-      await JsonSerializer.SerializeAsync(stream, tag, JsonCommonSerializerOptions);
+      await JsonSerializer.SerializeAsync(stream, tag, TagJsonSerializerContext.Default.Tag);
     }
 
     public static async Task<List<TagFileData>> GetAllTagScriptsAsync(
