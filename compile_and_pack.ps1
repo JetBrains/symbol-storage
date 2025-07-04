@@ -69,8 +69,8 @@ function packArchive($_ArchType, $_Name, $_Runtime) {
 function compileAndPack($_Runtime, $_ArchType) {
   Write-Host "Compile and pack for $_Runtime"
 
-  dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$_PublishDir\Manager\$_Runtime" Manager
-  dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$_PublishDir\Uploader\$_Runtime" Uploader
+  dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$_PublishDir\Manager\$_Runtime" Manager
+  dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$_PublishDir\Uploader\$_Runtime" Uploader
   packNuget Manager $_Runtime
   packNuget Uploader $_Runtime
   packArchive $_ArchType Manager $_Runtime
