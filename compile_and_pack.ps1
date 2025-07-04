@@ -15,29 +15,21 @@ Write-Host "Framework:" $_Framework
 Write-Host "PackageVersion:" $_PackageVersion
 Write-Host "Publish directory:" $_PublishDir
 
+
 function packNuget($_Name, $_Runtime) {
-  $_File='<?xml version="1.0" encoding="utf-8"?>
-<package>
-  <metadata>
-    <id>JetBrains.SymbolStorage.' + $_Name + '.' + $_Runtime + '</id>
-    <version>' + $_PackageVersion + '</version>
-    <title>JetBrains SymbolStorage ' + $_Name + '</title>
-    <authors>Mikhail Pilin</authors>
-    <copyright>Copyright © 2020-' + $(get-date -Format yyyy) + ' JetBrains s.r.o.</copyright>
-    <projectUrl>https://github.com/JetBrains/symbol-storage</projectUrl>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <license type="expression">MIT</license>
-    <description>JetBrains SymbolStorage ' + $_Name + '</description>
-  </metadata>
-  <files>
-    <file src="' + $_Name + '\' + $_Runtime + '\**\*" target="tools\' + $_Runtime + '" />
-  </files>
-</package>'
+  $_Template= Get-Content -Encoding UTF8 "NugetPackProjectTemplate.csproj.template"
+  $_Template = $_Template -replace "{{ROOT_PATH}}", ".."
+  $_Template = $_Template -replace "{{NAME}}", $_Name
+  $_Template = $_Template -replace "{{RUNTIME}}", $_Runtime
+  $_Template = $_Template -replace "{{CURRENT_YEAR}}", $(get-date -Format yyyy)
 
-
-  $_NuSpec="$_PublishDir\Package.$_Name.$_Runtime.nuspec"
-  Out-File -InputObject $_File -Encoding utf8 $_NuSpec
-  nuget pack $_NuSpec -OutputDirectory "$_PublishDir\nuget\"
+  $_CsprojSpec="$_PublishDir\Package.$_Name.$_Runtime.csproj"
+  Out-File -InputObject $_Template -Encoding utf8 $_CsprojSpec
+  dotnet pack $_CsprojSpec --output "$_PublishDir\nuget\" --artifacts-path "$_PublishDir\NugetBuild\$_Name\$_Runtime\" 
+  
+  if (0 -ne $LastExitCode) {
+    throw "dotnet pack exited with error"
+  }
 }
 
 function packZipArchive($_Name, $_Runtime) {
@@ -69,12 +61,14 @@ function packTarArchive($_Name, $_Runtime) {
 function packArchive($_ArchType, $_Name, $_Runtime) {
   switch ($_ArchType) {
     "tar" { packTarArchive $_Name $_Runtime }
-	"zip" { packZipArchive $_Name $_Runtime }
-	default { throw "Unknown archive type" }
+    "zip" { packZipArchive $_Name $_Runtime }
+    default { throw "Unknown archive type" }
   }
 }
 
 function compileAndPack($_Runtime, $_ArchType) {
+  Write-Host "Compile and pack for $_Runtime"
+
   dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$_PublishDir\Manager\$_Runtime" Manager
   dotnet publish -f $_Framework -r $_Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$_PublishDir\Uploader\$_Runtime" Uploader
   packNuget Manager $_Runtime

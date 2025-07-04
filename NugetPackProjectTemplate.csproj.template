@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="{{ROOT_PATH}}/Common.targets" />
+  <PropertyGroup>
+    <PackageId>JetBrains.SymbolStorage.{{NAME}}.{{RUNTIME}}</PackageId>
+    <Title>JetBrains SymbolStorage {{NAME}}</Title>
+    <Authors>Mikhail Pilin</Authors>
+    <Copyright>Copyright © 2020-{{CURRENT_YEAR}} JetBrains s.r.o.</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description>JetBrains SymbolStorage {{NAME}}</Description>
+    <PackageProjectUrl>https://github.com/JetBrains/symbol-storage</PackageProjectUrl>
+    <RequireLicenseAcceptance>false</RequireLicenseAcceptance>
+	<IncludeBuildOutput>false</IncludeBuildOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="{{NAME}}/{{RUNTIME}}/**/*" Pack="true" PackagePath="tools/{{RUNTIME}}" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="**" />
+  </ItemGroup>
+</Project>
