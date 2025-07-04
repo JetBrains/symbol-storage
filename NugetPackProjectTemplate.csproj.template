@@ -9,7 +9,7 @@
     <Description>JetBrains SymbolStorage {{NAME}}</Description>
     <PackageProjectUrl>https://github.com/JetBrains/symbol-storage</PackageProjectUrl>
     <RequireLicenseAcceptance>false</RequireLicenseAcceptance>
-	<IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>

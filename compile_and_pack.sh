@@ -16,30 +16,19 @@ echo "Publish directory: $PUBLISH_DIR"
 packNuget() {
   NAME=$1
   RUNTIME=$2
-
-  FILE="<?xml version=\"1.0\" encoding=\"utf-8\"?>
-<package>
-  <metadata>
-    <id>JetBrains.SymbolStorage.$NAME.$RUNTIME</id>
-    <version>$PACKAGE_VERSION</version>
-    <title>JetBrains SymbolStorage $NAME</title>
-    <authors>Mikhail Pilin</authors>
-    <copyright>Copyright © 2020-$(date +'%Y') JetBrains s.r.o.</copyright>
-    <projectUrl>https://github.com/JetBrains/symbol-storage</projectUrl>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <license type=\"expression\">MIT</license>
-    <description>JetBrains SymbolStorage $NAME</description>
-  </metadata>
-  <files>
-    <file src=\"$NAME\\$RUNTIME\\**\\*\" target=\"tools\\$RUNTIME\" />
-  </files>
-</package>"
-
-  NU_SPEC="$PUBLISH_DIR/Package.$NAME.$RUNTIME.nuspec"
-  echo "$FILE" > $NU_SPEC
-  nuget pack $NU_SPEC -OutputDirectory "$PUBLISH_DIR/nuget/"
+  
+  TEMPLATE_FILE="NugetPackProjectTemplate.csproj.template"
+  CSPROJ_SPEC="$PUBLISH_DIR/Package.$NAME.$RUNTIME.csproj"
+  
+  sed -e "s|{{ROOT_PATH}}|..|g" \
+      -e "s|{{NAME}}|$NAME|g" \
+      -e "s|{{RUNTIME}}|$RUNTIME|g" \
+      -e "s|{{CURRENT_YEAR}}|$(date +'%Y')|g" \
+      "$TEMPLATE_FILE" > "$CSPROJ_SPEC"  
+  
+  dotnet pack $CSPROJ_SPEC --output "$PUBLISH_DIR/nuget/" --artifacts-path "$PUBLISH_DIR/NugetBuild/$NAME/$RUNTIME/" 
   if [ $? -ne 0 ]; then
-    echo "Nuget exited with error"
+    echo "dotnet pack exited with error"
     exit 1
   fi
 }
