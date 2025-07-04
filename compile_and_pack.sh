@@ -88,8 +88,8 @@ compileAndPack() {
   RUNTIME=$1
   ARCH_TYPE=$2
 
-  dotnet publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$PUBLISH_DIR/Manager/$RUNTIME" Manager
-  dotnet publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -o "$PUBLISH_DIR/Uploader/$RUNTIME" Uploader
+  dotnet publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Manager/$RUNTIME" Manager
+  dotnet publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Uploader/$RUNTIME" Uploader
   packNuget Manager $RUNTIME
   packNuget Uploader $RUNTIME
   packArchive $ARCH_TYPE Manager $RUNTIME
