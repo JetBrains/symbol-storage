@@ -38,6 +38,10 @@ packNuget() {
   NU_SPEC="$PUBLISH_DIR/Package.$NAME.$RUNTIME.nuspec"
   echo "$FILE" > $NU_SPEC
   nuget pack $NU_SPEC -OutputDirectory "$PUBLISH_DIR/nuget/"
+  if [ $? -ne 0 ]; then
+    echo "Nuget exited with error"
+    exit 1
+  fi
 }
 
 packZipArchive() {
@@ -47,7 +51,15 @@ packZipArchive() {
   if [ ! -d "$PUBLISH_DIR/archive/" ]; then
     mkdir -p "$PUBLISH_DIR/archive/"
   fi
-  zip -r "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$NAME.$RUNTIME.zip" "$PUBLISH_DIR/$NAME/$RUNTIME/"
+  LOCATION=$PWD
+  pushd $LOCATION
+  cd "$PUBLISH_DIR/$NAME/$RUNTIME/"
+  zip -r "$LOCATION/$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$NAME.$RUNTIME.zip" .
+  popd
+  if [ $? -ne 0 ]; then
+    echo "Zip exited with error"
+    exit 1
+  fi
 }
 
 packTarArchive() {
