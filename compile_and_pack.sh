@@ -1,7 +1,12 @@
 #!/bin/bash
 
 PROJECT_FILE="Common.targets"
-PUBLISH_DIR="publish"
+PUBLISH_DIR="$PWD/publish"
+
+DOTNET_VERSION="9.0"
+DOTNET_CUSTOM_INSTALLATION_DIR="$HOME/.local/share/JetBrains/dotnet-sdk-temp/1e63e382e732473eab7845c59486bf30"
+DOTNET="$DOTNET_CUSTOM_INSTALLATION_DIR/dotnet"
+
 
 # FRAMEWORK=$(xmllint --xpath "string(//Project/PropertyGroup/TargetFramework)" $PROJECT_FILE)
 # PACKAGE_VERSION=$(xmllint --xpath "string(//Project/PropertyGroup/Version)" $PROJECT_FILE)
@@ -12,6 +17,36 @@ PACKAGE_VERSION=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' $PROJECT_FILE)
 echo "Framework: $FRAMEWORK"
 echo "PackageVersion: $PACKAGE_VERSION"
 echo "Publish directory: $PUBLISH_DIR"
+
+
+install_dotnet() {
+  # Check if dotnet is installed and matches the desired version
+  if command -v dotnet &> /dev/null; then
+    DOTNET_INSTALLED=$(command -v dotnet)
+    INSTALLED_VERSION=$($DOTNET_INSTALLED --list-sdks | grep -E "^$DOTNET_VERSION" || true)
+    if [[ -n "$INSTALLED_VERSION" ]]; then
+      echo "System .NET $DOTNET_VERSION will be used (location: $DOTNET_INSTALLED)"
+      DOTNET=$DOTNET_INSTALLED
+      return
+    fi
+  fi
+
+  # If not installed, proceed with installation
+  echo ".NET $DOTNET_VERSION will be installed (location: $DOTNET_CUSTOM_INSTALLATION_DIR)"
+  mkdir -p "$PUBLISH_DIR"
+  # wget -O "$PUBLISH_DIR/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
+  curl -L https://dot.net/v1/dotnet-install.sh -o "$PUBLISH_DIR/dotnet-install.sh"
+  if [ $? -ne 0 ]; then
+    echo "curl exited with error"
+    exit 1
+  fi
+  if [[ $(echo "$DOTNET_VERSION" | grep -o "\." | wc -l) -le 1 ]]; then
+    bash "$PUBLISH_DIR/dotnet-install.sh" --install-dir "$DOTNET_CUSTOM_INSTALLATION_DIR" --channel "$DOTNET_VERSION" --no-path
+  else
+    bash "$PUBLISH_DIR/dotnet-install.sh" --install-dir "$DOTNET_CUSTOM_INSTALLATION_DIR" --version "$DOTNET_VERSION" --no-path
+  fi
+}
+
 
 packNuget() {
   NAME=$1
@@ -26,7 +61,7 @@ packNuget() {
       -e "s|{{CURRENT_YEAR}}|$(date +'%Y')|g" \
       "$TEMPLATE_FILE" > "$CSPROJ_SPEC"  
   
-  dotnet pack $CSPROJ_SPEC --output "$PUBLISH_DIR/nuget/" --artifacts-path "$PUBLISH_DIR/NugetBuild/$NAME/$RUNTIME/" 
+  $DOTNET pack $CSPROJ_SPEC --output "$PUBLISH_DIR/nuget/" --artifacts-path "$PUBLISH_DIR/NugetBuild/$NAME/$RUNTIME/" 
   if [ $? -ne 0 ]; then
     echo "dotnet pack exited with error"
     exit 1
@@ -43,7 +78,7 @@ packZipArchive() {
   LOCATION=$PWD
   pushd $LOCATION
   cd "$PUBLISH_DIR/$NAME/$RUNTIME/"
-  zip -r "$LOCATION/$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$NAME.$RUNTIME.zip" .
+  zip -r "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$NAME.$RUNTIME.zip" .
   popd
   if [ $? -ne 0 ]; then
     echo "Zip exited with error"
@@ -88,14 +123,16 @@ compileAndPack() {
   RUNTIME=$1
   ARCH_TYPE=$2
 
-  dotnet publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Manager/$RUNTIME" Manager
-  dotnet publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Uploader/$RUNTIME" Uploader
+  $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Manager/$RUNTIME" Manager
+  $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Uploader/$RUNTIME" Uploader
   packNuget Manager $RUNTIME
   packNuget Uploader $RUNTIME
   packArchive $ARCH_TYPE Manager $RUNTIME
   packArchive $ARCH_TYPE Uploader $RUNTIME
 }
 
+
+install_dotnet
 
 compileAndPack "linux-arm" "tar"
 compileAndPack "linux-arm64" "tar"
