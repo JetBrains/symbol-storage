@@ -19,7 +19,7 @@ echo "PackageVersion: $PACKAGE_VERSION"
 echo "Publish directory: $PUBLISH_DIR"
 
 
-install_dotnet() {
+installDotnet() {
   # Check if dotnet is installed and matches the desired version
   if command -v dotnet &> /dev/null; then
     DOTNET_INSTALLED=$(command -v dotnet)
@@ -132,7 +132,7 @@ compileAndPack() {
 }
 
 
-install_dotnet
+installDotnet
 
 compileAndPack "linux-arm" "tar"
 compileAndPack "linux-arm64" "tar"

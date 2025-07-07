@@ -1,4 +1,12 @@
-﻿if ($PSVersionTable.PSVersion.Major -lt 3) {
+﻿param(
+    [ValidateSet("All", "Manager", "Uploader")]
+    [string]$Project="All",
+	[string]$Runtime="All",
+	[ValidateSet("All", "Build", "Pack", "PackNuget", "PackArchive")]
+	[string]$Action="All"
+)
+
+if ($PSVersionTable.PSVersion.Major -lt 3) {
 	throw "PS Version $($PSVersionTable.PSVersion) is below 3.0."
 }
 
@@ -7,9 +15,9 @@ $ErrorActionPreference=[System.Management.Automation.ActionPreference]::Stop
 $ProgressPreference="SilentlyContinue"
 
 
-[xml]$Project=Get-Content Common.targets
-$Framework=$Project.Project.PropertyGroup.TargetFramework
-$PackageVersion=$Project.Project.PropertyGroup.Version
+[xml]$ProjectContent=Get-Content Common.targets
+$Framework=$ProjectContent.Project.PropertyGroup.TargetFramework
+$PackageVersion=$ProjectContent.Project.PropertyGroup.Version
 $PublishDir="$PSScriptRoot\publish"
 
 $DotNetVersion="9.0"
@@ -46,41 +54,41 @@ function installDotNet() {
 }
 
 
-function packNuget($Name, $Runtime) {
+function packNuget($Project, $Runtime) {
   $Template= Get-Content -Encoding UTF8 "NugetPackProjectTemplate.csproj.template"
   $Template = $Template -replace "{{ROOT_PATH}}", ".."
-  $Template = $Template -replace "{{NAME}}", $Name
+  $Template = $Template -replace "{{NAME}}", $Project
   $Template = $Template -replace "{{RUNTIME}}", $Runtime
   $Template = $Template -replace "{{CURRENT_YEAR}}", $(get-date -Format yyyy)
 
-  $CsprojSpec="$PublishDir\Package.$Name.$Runtime.csproj"
+  $CsprojSpec="$PublishDir\Package.$Project.$Runtime.csproj"
   Out-File -InputObject $Template -Encoding utf8 $CsprojSpec
-  . $DotNet pack $CsprojSpec --output "$PublishDir\nuget\" --artifacts-path "$PublishDir\NugetBuild\$Name\$Runtime\" 
+  . $DotNet pack $CsprojSpec --output "$PublishDir\nuget\" --artifacts-path "$PublishDir\NugetBuild\$Project\$Runtime\" 
   
   if (0 -ne $LastExitCode) {
     throw "dotnet pack exited with error"
   }
 }
 
-function packZipArchive($Name, $Runtime) {
+function packZipArchive($Project, $Runtime) {
   if(!(Test-Path -PathType Container "$PublishDir\archive\"))
   {
     New-Item -ItemType Directory -Path "$PublishDir\archive\"
   }
-  Compress-Archive -Path "$PublishDir\$Name\$Runtime\*" -DestinationPath "$PublishDir\archive\JetBrains.SymbolStorage.$Name.$Runtime.zip"
+  Compress-Archive -Path "$PublishDir\$Project\$Runtime\*" -DestinationPath "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.zip"
 }
 
-function packTarArchive($Name, $Runtime) {
+function packTarArchive($Project, $Runtime) {
   If(!(Test-Path -PathType Container "$PublishDir\archive\"))
   {
     New-Item -ItemType Directory -Path "$PublishDir\archive\"
   }
-  Write-Host "$PublishDir\$Name\$Runtime\"
+  Write-Host "$PublishDir\$Project\$Runtime\"
   
   $Location= Get-Location
   Push-Location
-  cd "$PublishDir\$Name\$Runtime"
-  tar -czvf "$PublishDir\archive\JetBrains.SymbolStorage.$Name.$Runtime.tar.gz" "."
+  cd "$PublishDir\$Project\$Runtime"
+  tar -czvf "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.tar.gz" "."
   Pop-Location
   
   if (0 -ne $LastExitCode) {
@@ -88,36 +96,74 @@ function packTarArchive($Name, $Runtime) {
   }
 }
 
-function packArchive($ArchType, $Name, $Runtime) {
-  switch ($ArchType) {
-    "tar" { packTarArchive $Name $Runtime }
-    "zip" { packZipArchive $Name $Runtime }
+function packArchive($ArchiveType, $Project, $Runtime) {
+  switch ($ArchiveType) {
+    "tar" { packTarArchive $Project $Runtime }
+    "zip" { packZipArchive $Project $Runtime }
     default { throw "Unknown archive type" }
   }
 }
 
-function compileAndPack($Runtime, $ArchType) {
-  Write-Host "Compile and pack for $Runtime"
+function compileProject($Project, $Runtime) {
+  Write-Host "Compile $Project for $Runtime"
+  . $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PublishDir\$Project\$Runtime" $Project
+}
 
-  . $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PublishDir\Manager\$Runtime" Manager
-  . $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PublishDir\Uploader\$Runtime" Uploader
-  packNuget Manager $Runtime
-  packNuget Uploader $Runtime
-  packArchive $ArchType Manager $Runtime
-  packArchive $ArchType Uploader $Runtime
+function packProjectToNuget($Project, $Runtime) {
+  Write-Host "Pack $Project nuget for $Runtime"
+  packNuget $Project $Runtime
+}
+
+function packProjectToArchive($Project, $Runtime, $ArchiveType) {
+  if (-not $ArchiveType) {
+    if ($Runtime.StartsWith("win-")) {
+      $ArchiveType="zip"
+    } else {
+      $ArchiveType="tar"
+    }
+  }
+  Write-Host "Pack $Project for $Runtime into $ArchiveType archive"
+  packArchive $ArchiveType $Project $Runtime
 }
 
 
-$DotNet = installDotNet
+function processProjectOnRuntime($Project, $Runtime, $Action) {
+  if (($Action -eq "All") -or ($Action -eq "Build")) {
+    compileProject $Project $Runtime
+  }
+  if (($Action -eq "All") -or ($Action -eq "Pack") -or ($Action -eq "PackNuget")) {
+    packProjectToNuget $Project $Runtime
+  }
+  if (($Action -eq "All") -or ($Action -eq "Pack") -or ($Action -eq "PackArchive")) {
+    packProjectToArchive $Project $Runtime
+  }
+  
+  Write-Host "$Project for $Runtime processed"
+}
 
-compileAndPack "linux-arm" "tar"
-compileAndPack "linux-arm64" "tar"
-compileAndPack "linux-x64" "tar"
-compileAndPack "linux-musl-arm" "tar"
-compileAndPack "linux-musl-arm64" "tar"
-compileAndPack "linux-musl-x64" "tar"
-compileAndPack "osx-arm64" "tar"
-compileAndPack "osx-x64" "tar"
-compileAndPack "win-arm64" "zip"
-compileAndPack "win-x64" "zip"
-compileAndPack "win-x86" "zip"
+
+if (($Action -eq "All") -or ($Action -eq "Build") -or ($Action -eq "Pack") -or ($Action -eq "PackNuget")) {
+  $DotNet = installDotNet
+}
+
+
+
+$TargetRuntimes=@(
+  "linux-arm", "linux-arm64", "linux-x64", "linux-musl-arm", "linux-musl-arm64", "linux-musl-x64", "osx-arm64", "osx-x64", "win-arm64", "win-x64", "win-x86"
+)
+if (($Runtime) -and ($Runtime -ne "All")) {
+  $TargetRuntimes=@($Runtime)
+}
+
+$TargetProjects=@(
+  "Manager", "Uploader"
+)
+if (($Project) -and ($Project -ne "All")) {
+  $TargetProjects=@($Project)
+}
+
+foreach ($CurRuntime in $TargetRuntimes) {
+  foreach ($CurProject in $TargetProjects) {
+    processProjectOnRuntime $CurProject $CurRuntime $Action
+  }
+}
