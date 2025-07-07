@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# Parameters
+PROJECT="All"
+RUNTIME="All"
+ACTION="All"
+
+# Parsing arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --project) PROJECT="$2"; shift 2 ;;
+    --runtime) RUNTIME="$2"; shift 2 ;;
+    --action) ACTION="$2"; shift 2 ;;
+    *) echo "Usage: $0 --project PROJECT --runtime RUNTIME --action ACTION"; exit 1 ;;
+  esac
+done
+
+
 PROJECT_FILE="Common.targets"
 PUBLISH_DIR="$PWD/publish"
 
@@ -49,19 +65,19 @@ installDotnet() {
 
 
 packNuget() {
-  NAME=$1
-  RUNTIME=$2
+  local PROJECT=$1
+  local RUNTIME=$2
   
-  TEMPLATE_FILE="NugetPackProjectTemplate.csproj.template"
-  CSPROJ_SPEC="$PUBLISH_DIR/Package.$NAME.$RUNTIME.csproj"
+  local TEMPLATE_FILE="NugetPackProjectTemplate.csproj.template"
+  local CSPROJ_SPEC="$PUBLISH_DIR/Package.$PROJECT.$RUNTIME.csproj"
   
   sed -e "s|{{ROOT_PATH}}|..|g" \
-      -e "s|{{NAME}}|$NAME|g" \
+      -e "s|{{NAME}}|$PROJECT|g" \
       -e "s|{{RUNTIME}}|$RUNTIME|g" \
       -e "s|{{CURRENT_YEAR}}|$(date +'%Y')|g" \
       "$TEMPLATE_FILE" > "$CSPROJ_SPEC"  
   
-  $DOTNET pack $CSPROJ_SPEC --output "$PUBLISH_DIR/nuget/" --artifacts-path "$PUBLISH_DIR/NugetBuild/$NAME/$RUNTIME/" 
+  $DOTNET pack $CSPROJ_SPEC --output "$PUBLISH_DIR/nuget/" --artifacts-path "$PUBLISH_DIR/NugetBuild/$PROJECT/$RUNTIME/" 
   if [ $? -ne 0 ]; then
     echo "dotnet pack exited with error"
     exit 1
@@ -69,16 +85,16 @@ packNuget() {
 }
 
 packZipArchive() {
-  NAME=$1
-  RUNTIME=$2
+  local PROJECT=$1
+  local RUNTIME=$2
 
   if [ ! -d "$PUBLISH_DIR/archive/" ]; then
     mkdir -p "$PUBLISH_DIR/archive/"
   fi
   LOCATION=$PWD
   pushd $LOCATION
-  cd "$PUBLISH_DIR/$NAME/$RUNTIME/"
-  zip -r "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$NAME.$RUNTIME.zip" .
+  cd "$PUBLISH_DIR/$PROJECT/$RUNTIME/"
+  zip -r "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$PROJECT.$RUNTIME.zip" .
   popd
   if [ $? -ne 0 ]; then
     echo "Zip exited with error"
@@ -87,13 +103,13 @@ packZipArchive() {
 }
 
 packTarArchive() {
-  NAME=$1
-  RUNTIME=$2
+  local PROJECT=$1
+  local RUNTIME=$2
 
   if [ ! -d "$PUBLISH_DIR/archive/" ]; then
     mkdir -p "$PUBLISH_DIR/archive/"
   fi
-  tar -czvf "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$NAME.$RUNTIME.tar.gz" -C "$PUBLISH_DIR/$NAME/$RUNTIME" .
+  tar -czvf "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$PROJECT.$RUNTIME.tar.gz" -C "$PUBLISH_DIR/$PROJECT/$RUNTIME" .
   if [ $? -ne 0 ]; then
     echo "Tar exited with error"
     exit 1
@@ -101,16 +117,16 @@ packTarArchive() {
 }
 
 packArchive() {
-  ARCH_TYPE=$1
-  NAME=$2
-  RUNTIME=$3
+  local ARCHIVE_TYPE=$1
+  local PROJECT=$2
+  local RUNTIME=$3
 
-  case $ARCH_TYPE in
+  case $ARCHIVE_TYPE in
     "tar") 
-      packTarArchive $NAME $RUNTIME
+      packTarArchive $PROJECT $RUNTIME
       ;;
     "zip")
-      packZipArchive $NAME $RUNTIME
+      packZipArchive $PROJECT $RUNTIME
       ;;
     *)
       echo "Unknown archive type"
@@ -119,29 +135,76 @@ packArchive() {
   esac
 }
 
-compileAndPack() {
-  RUNTIME=$1
-  ARCH_TYPE=$2
 
-  $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Manager/$RUNTIME" Manager
-  $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/Uploader/$RUNTIME" Uploader
-  packNuget Manager $RUNTIME
-  packNuget Uploader $RUNTIME
-  packArchive $ARCH_TYPE Manager $RUNTIME
-  packArchive $ARCH_TYPE Uploader $RUNTIME
+compileProject() {
+  local PROJECT="$1"
+  local RUNTIME="$2"
+  echo "Compile $PROJECT for $RUNTIME"
+  $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/$PROJECT/$RUNTIME" $PROJECT
+}
+
+packProjectToNuget() {
+  local PROJECT="$1"
+  local RUNTIME="$2"
+  echo "Pack $PROJECT nuget for $RUNTIME"
+  packNuget $PROJECT $RUNTIME
+}
+
+packProjectToArchive() {
+  local PROJECT="$1"
+  local RUNTIME="$2"
+  local ARCHIVE_TYPE="$3"
+
+  if [ -z "$ARCHIVE_TYPE" ]; then
+    if [[ "$RUNTIME" == win-* ]]; then
+      ARCHIVE_TYPE="zip"
+    else
+      ARCHIVE_TYPE="tar"
+    fi
+  fi
+
+  echo "Pack $PROJECT for $RUNTIME into $ARCHIVE_TYPE archive"
+  packArchive $ARCHIVE_TYPE $PROJECT $RUNTIME
+}
+
+processProjectOnRuntime() {
+  local PROJECT="$1"
+  local RUNTIME="$2"
+  local ACTION="$3"
+
+  if [[ "$ACTION" == "All" || "$ACTION" == "Build" ]]; then
+    compileProject "$PROJECT" "$RUNTIME"
+  fi
+  if [[ "$ACTION" == "All" || "$ACTION" == "Pack" || "$ACTION" == "PackNuget" ]]; then
+    packProjectToNuget $PROJECT $RUNTIME
+  fi
+  if [[ "$ACTION" == "All" || "$ACTION" == "Pack" || "$ACTION" == "PackArchive" ]]; then
+    packProjectToArchive $PROJECT $RUNTIME ""
+  fi
+
+  echo "$PROJECT for $RUNTIME processed"
 }
 
 
-installDotnet
+# Main script logic
 
-compileAndPack "linux-arm" "tar"
-compileAndPack "linux-arm64" "tar"
-compileAndPack "linux-x64" "tar"
-compileAndPack "linux-musl-arm" "tar"
-compileAndPack "linux-musl-arm64" "tar"
-compileAndPack "linux-musl-x64" "tar"
-compileAndPack "osx-arm64" "tar"
-compileAndPack "osx-x64" "tar"
-compileAndPack "win-arm64" "zip"
-compileAndPack "win-x64" "zip"
-compileAndPack "win-x86" "zip"
+if [[ "$ACTION" == "All" || "$ACTION" == "Build" || "$ACTION" == "Pack" || "$ACTION" == "PackNuget" ]]; then
+  installDotnet
+fi
+
+TARGET_RUNTIMES=("linux-arm" "linux-arm64" "linux-x64" "linux-musl-arm" "linux-musl-arm64" "linux-musl-x64" "osx-arm64" "osx-x64" "win-arm64" "win-x64" "win-x86")
+if [[ "$RUNTIME" != "All" && -n "$RUNTIME" ]]; then
+  TARGET_RUNTIMES=("$RUNTIME")
+fi
+
+TARGET_PROJECTS=("Manager" "Uploader")
+if [[ "$PROJECT" != "All" && -n "$PROJECT" ]]; then
+  TARGET_PROJECTS=("$PROJECT")
+fi
+
+for CUR_RUNTIME in "${TARGET_RUNTIMES[@]}"; do
+  for CUR_PROJECT in "${TARGET_PROJECTS[@]}"; do
+    processProjectOnRuntime $CUR_PROJECT $CUR_RUNTIME $ACTION
+  done
+done
+
