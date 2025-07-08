@@ -1,9 +1,9 @@
 ﻿param(
     [ValidateSet("All", "Manager", "Uploader")]
     [string]$Project="All",
-	[string]$Runtime="All",
-	[ValidateSet("All", "Build", "Pack", "PackNuget", "PackArchive")]
-	[string]$Action="All"
+    [string[]]$Runtimes=@(),
+    [ValidateSet("All", "Build", "Test", "Pack", "PackNuget", "PackArchive")]
+    [string]$Action="All"
 )
 
 if ($PSVersionTable.PSVersion.Major -lt 3) {
@@ -13,6 +13,11 @@ if ($PSVersionTable.PSVersion.Major -lt 3) {
 Set-StrictMode -Version Latest
 $ErrorActionPreference=[System.Management.Automation.ActionPreference]::Stop
 $ProgressPreference="SilentlyContinue"
+
+# Fix array parameters when script executed from cmd
+if (($Runtimes) -and ($Runtimes.Length -eq 1) -and $Runtimes[0].Contains(",")) {
+  $Runtimes=$Runtimes[0].Split(',')
+}
 
 
 [xml]$ProjectContent=Get-Content Common.targets
@@ -75,7 +80,7 @@ function packZipArchive($Project, $Runtime) {
   {
     New-Item -ItemType Directory -Path "$PublishDir\archive\"
   }
-  Compress-Archive -Path "$PublishDir\$Project\$Runtime\*" -DestinationPath "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.zip"
+  Compress-Archive -Path "$PublishDir\$Project\$Runtime\*" -DestinationPath "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.zip" -Force
 }
 
 function packTarArchive($Project, $Runtime) {
@@ -109,6 +114,15 @@ function compileProject($Project, $Runtime) {
   . $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PublishDir\$Project\$Runtime" $Project
 }
 
+function runAllTests() {
+  Write-Host "Run all tests"
+  . $DotNet test -f $Framework
+  if (0 -ne $LastExitCode) {
+    throw "Tests failed"
+  }
+  Write-Host ""
+}
+
 function packProjectToNuget($Project, $Runtime) {
   Write-Host "Pack $Project nuget for $Runtime"
   packNuget $Project $Runtime
@@ -128,21 +142,27 @@ function packProjectToArchive($Project, $Runtime, $ArchiveType) {
 
 
 function processProjectOnRuntime($Project, $Runtime, $Action) {
+  $ProcessedByAnyStep=$false
   if (($Action -eq "All") -or ($Action -eq "Build")) {
     compileProject $Project $Runtime
+    $ProcessedByAnyStep=$true
   }
   if (($Action -eq "All") -or ($Action -eq "Pack") -or ($Action -eq "PackNuget")) {
     packProjectToNuget $Project $Runtime
+    $ProcessedByAnyStep=$true
   }
   if (($Action -eq "All") -or ($Action -eq "Pack") -or ($Action -eq "PackArchive")) {
     packProjectToArchive $Project $Runtime
+    $ProcessedByAnyStep=$true
   }
   
-  Write-Host "$Project for $Runtime processed"
+  if ($ProcessedByAnyStep) {
+    Write-Host "$Project for $Runtime processed"
+  }
 }
 
 
-if (($Action -eq "All") -or ($Action -eq "Build") -or ($Action -eq "Pack") -or ($Action -eq "PackNuget")) {
+if (($Action -eq "All") -or ($Action -eq "Build") -or ($Action -eq "Test") -or ($Action -eq "Pack") -or ($Action -eq "PackNuget")) {
   $DotNet = installDotNet
 }
 
@@ -151,8 +171,8 @@ if (($Action -eq "All") -or ($Action -eq "Build") -or ($Action -eq "Pack") -or (
 $TargetRuntimes=@(
   "linux-arm", "linux-arm64", "linux-x64", "linux-musl-arm", "linux-musl-arm64", "linux-musl-x64", "osx-arm64", "osx-x64", "win-arm64", "win-x64", "win-x86"
 )
-if (($Runtime) -and ($Runtime -ne "All")) {
-  $TargetRuntimes=@($Runtime)
+if (($Runtimes) -and ($Runtimes.Length -gt 0) -and ($Runtimes[0] -ne "All")) {
+  $TargetRuntimes=$Runtimes
 }
 
 $TargetProjects=@(
@@ -160,6 +180,11 @@ $TargetProjects=@(
 )
 if (($Project) -and ($Project -ne "All")) {
   $TargetProjects=@($Project)
+}
+
+
+if (($Action -eq "All") -or ($Action -eq "Test")) {
+  runAllTests
 }
 
 foreach ($CurRuntime in $TargetRuntimes) {
