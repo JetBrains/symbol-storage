@@ -2,16 +2,16 @@
 
 # Parameters
 PROJECT="All"
-RUNTIME="All"
+RUNTIMES=()
 ACTION="All"
 
 # Parsing arguments
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --project) PROJECT="$2"; shift 2 ;;
-    --runtime) RUNTIME="$2"; shift 2 ;;
+    --runtimes) IFS=',' read -ra RUNTIMES <<< "$2"; shift 2 ;;
     --action) ACTION="$2"; shift 2 ;;
-    *) echo "Usage: $0 --project PROJECT --runtime RUNTIME --action ACTION"; exit 1 ;;
+    *) echo "Usage: $0 --project PROJECT --runtimes RUNTIME1,RUNTIME2 --action ACTION"; exit 1 ;;
   esac
 done
 
@@ -143,6 +143,16 @@ compileProject() {
   $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/$PROJECT/$RUNTIME" $PROJECT
 }
 
+runAllTests() {
+  echo "Run all tests"
+  $DOTNET test -f $FRAMEWORK
+  if [ $? -ne 0 ]; then
+    echo "Tests failed"
+    exit 1
+  fi
+  echo ""
+}
+
 packProjectToNuget() {
   local PROJECT="$1"
   local RUNTIME="$2"
@@ -171,35 +181,45 @@ processProjectOnRuntime() {
   local PROJECT="$1"
   local RUNTIME="$2"
   local ACTION="$3"
+  local processedByAnyStep=false
 
   if [[ "$ACTION" == "All" || "$ACTION" == "Build" ]]; then
     compileProject "$PROJECT" "$RUNTIME"
+    processedByAnyStep=true
   fi
   if [[ "$ACTION" == "All" || "$ACTION" == "Pack" || "$ACTION" == "PackNuget" ]]; then
     packProjectToNuget $PROJECT $RUNTIME
+    processedByAnyStep=true
   fi
   if [[ "$ACTION" == "All" || "$ACTION" == "Pack" || "$ACTION" == "PackArchive" ]]; then
     packProjectToArchive $PROJECT $RUNTIME ""
+    processedByAnyStep=true
   fi
 
-  echo "$PROJECT for $RUNTIME processed"
+  if [[ "$processedByAnyStep" == true ]]; then
+    echo "$PROJECT for $RUNTIME processed"
+  fi
 }
 
 
 # Main script logic
 
-if [[ "$ACTION" == "All" || "$ACTION" == "Build" || "$ACTION" == "Pack" || "$ACTION" == "PackNuget" ]]; then
+if [[ "$ACTION" == "All" || "$ACTION" == "Build" || "$ACTION" == "Test" || "$ACTION" == "Pack" || "$ACTION" == "PackNuget" ]]; then
   installDotnet
 fi
 
 TARGET_RUNTIMES=("linux-arm" "linux-arm64" "linux-x64" "linux-musl-arm" "linux-musl-arm64" "linux-musl-x64" "osx-arm64" "osx-x64" "win-arm64" "win-x64" "win-x86")
-if [[ "$RUNTIME" != "All" && -n "$RUNTIME" ]]; then
-  TARGET_RUNTIMES=("$RUNTIME")
+if [[ "$RUNTIMES" != "All" && -n "$RUNTIMES" && ${#RUNTIMES[@]} -gt 0 && "${RUNTIMES[0]}" != "All" ]]; then
+  TARGET_RUNTIMES=("${RUNTIMES[@]}")
 fi
 
 TARGET_PROJECTS=("Manager" "Uploader")
 if [[ "$PROJECT" != "All" && -n "$PROJECT" ]]; then
   TARGET_PROJECTS=("$PROJECT")
+fi
+
+if [[ "$ACTION" == "All" || "$ACTION" == "Test" ]]; then
+  runAllTests
 fi
 
 for CUR_RUNTIME in "${TARGET_RUNTIMES[@]}"; do
