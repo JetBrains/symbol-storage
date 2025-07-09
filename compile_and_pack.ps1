@@ -82,7 +82,7 @@ function packZipArchive($Project, $Runtime) {
   {
     New-Item -ItemType Directory -Path "$PublishDir\archive\"
   }
-  Compress-Archive -Path "$PublishDir\$Project\$Runtime\*" -DestinationPath "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.zip" -Force
+  Compress-Archive -Path "$PublishDir\$Project\$Runtime\*" -DestinationPath "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.$PackageVersion.zip" -Force
 }
 
 function packTarArchive($Project, $Runtime) {
@@ -95,7 +95,7 @@ function packTarArchive($Project, $Runtime) {
   $Location= Get-Location
   Push-Location
   cd "$PublishDir\$Project\$Runtime"
-  tar -czvf "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.tar.gz" "."
+  tar -czvf "$PublishDir\archive\JetBrains.SymbolStorage.$Project.$Runtime.$PackageVersion.tar.gz" "."
   Pop-Location
   
   if (0 -ne $LastExitCode) {
