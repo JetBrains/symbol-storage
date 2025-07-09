@@ -96,7 +96,7 @@ packZipArchive() {
   LOCATION=$PWD
   pushd $LOCATION
   cd "$PUBLISH_DIR/$PROJECT/$RUNTIME/"
-  zip -r "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$PROJECT.$RUNTIME.zip" .
+  zip -r "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$PROJECT.$RUNTIME.$PACKAGE_VERSION.zip" .
   popd
   if [ $? -ne 0 ]; then
     echo "Zip exited with error"
@@ -111,7 +111,7 @@ packTarArchive() {
   if [ ! -d "$PUBLISH_DIR/archive/" ]; then
     mkdir -p "$PUBLISH_DIR/archive/"
   fi
-  tar -czvf "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$PROJECT.$RUNTIME.tar.gz" -C "$PUBLISH_DIR/$PROJECT/$RUNTIME" .
+  tar -czvf "$PUBLISH_DIR/archive/JetBrains.SymbolStorage.$PROJECT.$RUNTIME.$PACKAGE_VERSION.tar.gz" -C "$PUBLISH_DIR/$PROJECT/$RUNTIME" .
   if [ $? -ne 0 ]; then
     echo "Tar exited with error"
     exit 1
