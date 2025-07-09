@@ -4,6 +4,7 @@
 PROJECT="All"
 RUNTIMES=()
 ACTION="All"
+USE_SYSTEM_DOTNET=false
 
 # Parsing arguments
 while [[ $# -gt 0 ]]; do
@@ -11,6 +12,7 @@ while [[ $# -gt 0 ]]; do
     --project) PROJECT="$2"; shift 2 ;;
     --runtimes) IFS=',' read -ra RUNTIMES <<< "$2"; shift 2 ;;
     --action) ACTION="$2"; shift 2 ;;
+    --use-system-dotnet) USE_SYSTEM_DOTNET=true; shift ;;
     *) echo "Usage: $0 --project PROJECT --runtimes RUNTIME1,RUNTIME2 --action ACTION"; exit 1 ;;
   esac
 done
@@ -19,7 +21,7 @@ done
 PROJECT_FILE="Common.targets"
 PUBLISH_DIR="$PWD/publish"
 
-DOTNET_VERSION="9.0"
+DOTNET_VERSION="9.0.302"
 DOTNET_CUSTOM_INSTALLATION_DIR="$HOME/.local/share/JetBrains/dotnet-sdk-1e63e382e732473e"
 DOTNET="$DOTNET_CUSTOM_INSTALLATION_DIR/dotnet"
 
@@ -30,20 +32,34 @@ DOTNET="$DOTNET_CUSTOM_INSTALLATION_DIR/dotnet"
 FRAMEWORK=$(sed -n 's/.*<TargetFramework>\(.*\)<\/TargetFramework>.*/\1/p' $PROJECT_FILE)
 PACKAGE_VERSION=$(sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' $PROJECT_FILE)
 
+
+# set environment variables to minimize influence of custom .net installation
+export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
+export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=true
+export DOTNET_CLI_TELEMETRY_OPTOUT=true
+export DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=true
+export DOTNET_MULTILEVEL_LOOKUP=false
+unset DOTNET_ROOT
+unset MSBUILD_TASK_PARENT_PROCESS_PID
+unset MSBuildSDKsPath
+
+
 echo "Framework: $FRAMEWORK"
 echo "PackageVersion: $PACKAGE_VERSION"
 echo "Publish directory: $PUBLISH_DIR"
 
 
 installDotnet() {
-  # Check if dotnet is installed and matches the desired version
-  if command -v dotnet &> /dev/null; then
-    DOTNET_INSTALLED=$(command -v dotnet)
-    INSTALLED_VERSION=$($DOTNET_INSTALLED --list-sdks | grep -E "^$DOTNET_VERSION" || true)
-    if [[ -n "$INSTALLED_VERSION" ]]; then
-      echo "System .NET $DOTNET_VERSION will be used (location: $DOTNET_INSTALLED)"
-      DOTNET=$DOTNET_INSTALLED
-      return
+  if $USE_SYSTEM_DOTNET; then
+    # Check if dotnet is installed and matches the desired version
+    if command -v dotnet &> /dev/null; then
+      DOTNET_INSTALLED=$(command -v dotnet)
+      INSTALLED_VERSION=$($DOTNET_INSTALLED --list-sdks | grep -E "^$DOTNET_VERSION" || true)
+      if [[ -n "$INSTALLED_VERSION" ]]; then
+        echo "System .NET $DOTNET_VERSION will be used (location: $DOTNET_INSTALLED)"
+        DOTNET=$DOTNET_INSTALLED
+        return
+      fi
     fi
   fi
 
@@ -79,7 +95,7 @@ packNuget() {
       -e "s|{{CURRENT_YEAR}}|$(date +'%Y')|g" \
       "$TEMPLATE_FILE" > "$CSPROJ_SPEC"  
   
-  $DOTNET pack $CSPROJ_SPEC --output "$PUBLISH_DIR/nuget/" --artifacts-path "$PUBLISH_DIR/NugetBuild/$PROJECT/$RUNTIME/" 
+  $DOTNET pack --disable-build-servers $CSPROJ_SPEC --output "$PUBLISH_DIR/nuget/" --artifacts-path "$PUBLISH_DIR/NugetBuild/$PROJECT/$RUNTIME/" 
   if [ $? -ne 0 ]; then
     echo "dotnet pack exited with error"
     exit 1
@@ -142,12 +158,12 @@ compileProject() {
   local PROJECT="$1"
   local RUNTIME="$2"
   echo "Compile $PROJECT for $RUNTIME"
-  $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PUBLISH_DIR/$PROJECT/$RUNTIME" $PROJECT
+  $DOTNET publish -f $FRAMEWORK -r $RUNTIME -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 --disable-build-servers -o "$PUBLISH_DIR/$PROJECT/$RUNTIME" $PROJECT
 }
 
 runAllTests() {
   echo "Run all tests"
-  $DOTNET test -f $FRAMEWORK
+  $DOTNET test -f $FRAMEWORK --disable-build-servers -noWarn:NETSDK1188
   if [ $? -ne 0 ]; then
     echo "Tests failed"
     exit 1
