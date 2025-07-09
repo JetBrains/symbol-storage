@@ -34,32 +34,33 @@ Write-Host "PackageVersion:" $PackageVersion
 Write-Host "Publish directory:" $PublishDir
 
 
-function installDotNet() {
+function installDotNet {
+  param([ref]$DotNet)
+  
   try {
     $DotNetInstalled=(Get-Command dotnet).Path
     if ((. $DotNetInstalled --list-sdks) -match "^$([Regex]::Escape($DotNetVersion))") {
       Write-Host "System .NET $DotNetVersion will be used (location: $DotNetInstalled)"
-      return $DotNetInstalled
+      $DotNet.Value = $DotNetInstalled
+      return
     }
   } catch {
   }
   
   Write-Host ".NET $DotNetVersion will be installed (location: $DotNetCustomInstallationDir)"
-  if(!(Test-Path -PathType Container "$PublishDir"))
+  if (!(Test-Path -PathType Container "$PublishDir"))
   {
     New-Item -ItemType Directory -Path "$PublishDir"
   }
   if (!(Test-Path -PathType Leaf "$PublishDir\dotnet-install.ps1")) {
     Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile "$PublishDir\dotnet-install.ps1"
   }
-  Write-Host "dotnet value before install: $DotNet"
   if (([regex]::Matches($DotNetVersion, "\." )).count -le 1) {
     & "$PublishDir\dotnet-install.ps1" -InstallDir $DotNetCustomInstallationDir -Channel $DotNetVersion -NoPath
   } else {
     & "$PublishDir\dotnet-install.ps1" -InstallDir $DotNetCustomInstallationDir -Version $DotNetVersion -NoPath
   }
-  Write-Host "dotnet value after install: $DotNet"
-  return $DotNet
+  return
 }
 
 
@@ -167,7 +168,8 @@ function processProjectOnRuntime($Project, $Runtime, $Action) {
 
 
 if (($Action -eq "All") -or ($Action -eq "Build") -or ($Action -eq "Test") -or ($Action -eq "Pack") -or ($Action -eq "PackNuget")) {
-  $DotNet= installDotNet
+  installDotNet ([ref]$DotNet)
+  Write-Host "dotnet.exe path: '$DotNet'"
 }
 
 
