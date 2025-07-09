@@ -3,7 +3,8 @@
     [string]$Project="All",
     [string[]]$Runtimes=@(),
     [ValidateSet("All", "Build", "Test", "Pack", "PackNuget", "PackArchive")]
-    [string]$Action="All"
+    [string]$Action="All",
+	[switch]$UseSystemDotNet
 )
 
 if ($PSVersionTable.PSVersion.Major -lt 3) {
@@ -25,9 +26,19 @@ $Framework=$ProjectContent.Project.PropertyGroup.TargetFramework
 $PackageVersion=$ProjectContent.Project.PropertyGroup.Version
 $PublishDir="$PSScriptRoot\publish"
 
-$DotNetVersion="9.0"
+$DotNetVersion="9.0.302"
 $DotNetCustomInstallationDir="$env:LOCALAPPDATA\JetBrains\dotnet-sdk-1e63e382e732473e"
 $DotNet="$DotNetCustomInstallationDir\dotnet.exe"
+
+# set environment variables to minimize influence of custom .net installation
+$env:DOTNET_SYSTEM_GLOBALIZATION_INVARIANT="true"
+$env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE="true"
+$env:DOTNET_CLI_TELEMETRY_OPTOUT="true"
+$env:DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE="true"
+$env:DOTNET_MULTILEVEL_LOOKUP="false"
+$env:DOTNET_ROOT=""
+$env:MSBUILD_TASK_PARENT_PROCESS_PID=""
+$env:MSBuildSDKsPath=""
 
 Write-Host "Framework:" $Framework
 Write-Host "PackageVersion:" $PackageVersion
@@ -37,14 +48,16 @@ Write-Host "Publish directory:" $PublishDir
 function installDotNet {
   param([ref]$DotNet)
   
-  try {
-    $DotNetInstalled=(Get-Command dotnet).Path
-    if ((. $DotNetInstalled --list-sdks) -match "^$([Regex]::Escape($DotNetVersion))") {
-      Write-Host "System .NET $DotNetVersion will be used (location: $DotNetInstalled)"
-      $DotNet.Value = $DotNetInstalled
-      return
+  if ($UseSystemDotNet) {
+    try {
+      $DotNetInstalled=(Get-Command dotnet).Path
+      if ((. $DotNetInstalled --list-sdks) -match "^$([Regex]::Escape($DotNetVersion))") {
+        Write-Host "System .NET $DotNetVersion will be used (location: $DotNetInstalled)"
+        $DotNet.Value = $DotNetInstalled
+        return
+      }
+    } catch {
     }
-  } catch {
   }
   
   Write-Host ".NET $DotNetVersion will be installed (location: $DotNetCustomInstallationDir)"
@@ -73,7 +86,7 @@ function packNuget($Project, $Runtime) {
 
   $CsprojSpec="$PublishDir\Package.$Project.$Runtime.csproj"
   Out-File -InputObject $Template -Encoding utf8 $CsprojSpec
-  & $DotNet pack $CsprojSpec --output "$PublishDir\nuget\" --artifacts-path "$PublishDir\NugetBuild\$Project\$Runtime\" 
+  & $DotNet pack --disable-build-servers $CsprojSpec --output "$PublishDir\nuget\" --artifacts-path "$PublishDir\NugetBuild\$Project\$Runtime\" 
   
   if (0 -ne $LastExitCode) {
     throw "dotnet pack exited with error"
@@ -116,12 +129,12 @@ function packArchive($ArchiveType, $Project, $Runtime) {
 
 function compileProject($Project, $Runtime) {
   Write-Host "Compile $Project for $Runtime"
-  & $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PublishDir\$Project\$Runtime" $Project
+  & $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 --disable-build-servers -o "$PublishDir\$Project\$Runtime" $Project
 }
 
 function runAllTests() {
   Write-Host "Run all tests"
-  & $DotNet test -f $Framework
+  & $DotNet test -f $Framework --disable-build-servers -noWarn:NETSDK1188
   if (0 -ne $LastExitCode) {
     throw "Tests failed"
   }
