@@ -117,7 +117,7 @@ function compileProject($Project, $Runtime) {
 }
 
 function runAllTests() {
-  Write-Host "Run all tests"
+  Write-Host "Run all tests. Command: '$DotNet test -f $Framework'"
   & $DotNet test -f $Framework
   if (0 -ne $LastExitCode) {
     throw "Tests failed"
