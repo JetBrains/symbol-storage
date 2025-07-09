@@ -52,13 +52,11 @@ function installDotNet() {
   if (!(Test-Path -PathType Leaf "$PublishDir\dotnet-install.ps1")) {
     Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile "$PublishDir\dotnet-install.ps1"
   }
-  Write-Host "DotNet variable value before installation: $DotNet"
   if (([regex]::Matches($DotNetVersion, "\." )).count -le 1) {
     & "$PublishDir\dotnet-install.ps1" -InstallDir $DotNetCustomInstallationDir -Channel $DotNetVersion -NoPath
   } else {
     & "$PublishDir\dotnet-install.ps1" -InstallDir $DotNetCustomInstallationDir -Version $DotNetVersion -NoPath
   }
-  Write-Host "DotNet variable value after installation: $DotNet"
   return $DotNet
 }
 
@@ -119,7 +117,7 @@ function compileProject($Project, $Runtime) {
 }
 
 function runAllTests() {
-  Write-Host "Run all tests. Command: '$DotNet test -f $Framework'"
+  Write-Host "Run all tests"
   & $DotNet test -f $Framework
   if (0 -ne $LastExitCode) {
     throw "Tests failed"
