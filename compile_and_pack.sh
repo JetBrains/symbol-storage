@@ -20,7 +20,7 @@ PROJECT_FILE="Common.targets"
 PUBLISH_DIR="$PWD/publish"
 
 DOTNET_VERSION="9.0"
-DOTNET_CUSTOM_INSTALLATION_DIR="$HOME/.local/share/JetBrains/dotnet-sdk-temp/1e63e382e732473eab7845c59486bf30"
+DOTNET_CUSTOM_INSTALLATION_DIR="$HOME/.local/share/JetBrains/dotnet-sdk-1e63e382e732473e"
 DOTNET="$DOTNET_CUSTOM_INSTALLATION_DIR/dotnet"
 
 
@@ -50,11 +50,13 @@ installDotnet() {
   # If not installed, proceed with installation
   echo ".NET $DOTNET_VERSION will be installed (location: $DOTNET_CUSTOM_INSTALLATION_DIR)"
   mkdir -p "$PUBLISH_DIR"
-  # wget -O "$PUBLISH_DIR/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
-  curl -L https://dot.net/v1/dotnet-install.sh -o "$PUBLISH_DIR/dotnet-install.sh"
-  if [ $? -ne 0 ]; then
-    echo "curl exited with error"
-    exit 1
+  if [ ! -f "$PUBLISH_DIR/dotnet-install.sh" ]; then
+    # wget -O "$PUBLISH_DIR/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
+    curl -L https://dot.net/v1/dotnet-install.sh -o "$PUBLISH_DIR/dotnet-install.sh"
+    if [ $? -ne 0 ]; then
+      echo "curl exited with error"
+      exit 1
+    fi
   fi
   if [[ $(echo "$DOTNET_VERSION" | grep -o "\." | wc -l) -le 1 ]]; then
     bash "$PUBLISH_DIR/dotnet-install.sh" --install-dir "$DOTNET_CUSTOM_INSTALLATION_DIR" --channel "$DOTNET_VERSION" --no-path
