@@ -26,7 +26,7 @@ $PackageVersion=$ProjectContent.Project.PropertyGroup.Version
 $PublishDir="$PSScriptRoot\publish"
 
 $DotNetVersion="9.0"
-$DotNetCustomInstallationDir="$env:LOCALAPPDATA\JetBrains\dotnet-sdk-temp\1e63e382e732473eab7845c59486bf30"
+$DotNetCustomInstallationDir="$env:LOCALAPPDATA\JetBrains\dotnet-sdk-1e63e382e732473e"
 $DotNet="$DotNetCustomInstallationDir\dotnet.exe"
 
 Write-Host "Framework:" $Framework
@@ -49,7 +49,9 @@ function installDotNet() {
   {
     New-Item -ItemType Directory -Path "$PublishDir"
   }
-  Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile "$PublishDir\dotnet-install.ps1"
+  if (!(Test-Path -PathType Leaf "$PublishDir\dotnet-install.ps1")) {
+    Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile "$PublishDir\dotnet-install.ps1"
+  }
   if (([regex]::Matches($DotNetVersion, "\." )).count -le 1) {
     . "$PublishDir\dotnet-install.ps1" -InstallDir $DotNetCustomInstallationDir -Channel $DotNetVersion -NoPath
   } else {
@@ -68,7 +70,7 @@ function packNuget($Project, $Runtime) {
 
   $CsprojSpec="$PublishDir\Package.$Project.$Runtime.csproj"
   Out-File -InputObject $Template -Encoding utf8 $CsprojSpec
-  . $DotNet pack $CsprojSpec --output "$PublishDir\nuget\" --artifacts-path "$PublishDir\NugetBuild\$Project\$Runtime\" 
+  & $DotNet pack $CsprojSpec --output "$PublishDir\nuget\" --artifacts-path "$PublishDir\NugetBuild\$Project\$Runtime\" 
   
   if (0 -ne $LastExitCode) {
     throw "dotnet pack exited with error"
@@ -111,12 +113,12 @@ function packArchive($ArchiveType, $Project, $Runtime) {
 
 function compileProject($Project, $Runtime) {
   Write-Host "Compile $Project for $Runtime"
-  . $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PublishDir\$Project\$Runtime" $Project
+  & $DotNet publish -f $Framework -r $Runtime -c Release --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -warnAsMessage:IL2104 -o "$PublishDir\$Project\$Runtime" $Project
 }
 
 function runAllTests() {
   Write-Host "Run all tests"
-  . $DotNet test -f $Framework
+  & $DotNet test -f $Framework
   if (0 -ne $LastExitCode) {
     throw "Tests failed"
   }
@@ -163,7 +165,7 @@ function processProjectOnRuntime($Project, $Runtime, $Action) {
 
 
 if (($Action -eq "All") -or ($Action -eq "Build") -or ($Action -eq "Test") -or ($Action -eq "Pack") -or ($Action -eq "PackNuget")) {
-  $DotNet = installDotNet
+  $DotNet= installDotNet
 }
 
 
